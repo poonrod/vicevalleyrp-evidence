@@ -1,0 +1,93 @@
+Bodycam = Bodycam or {}
+Bodycam.active = false
+Bodycam.autoLockUntil = 0
+Bodycam.lastAutoAt = 0
+Bodycam.incidentId = nil
+Bodycam.sleeping = false
+Bodycam.personal = {
+    autoTaser = true,
+    autoFirearm = true,
+    sound = true,
+    firstPerson = true,
+    lowStorage = false,
+}
+
+local function canUseBodycam()
+    if not PermissionsClient.IsAllowed() then return false end
+    if not EquipmentClient.IsEquipped() then return false end
+    return true
+end
+
+function Bodycam.SetActive(on, sourceKind)
+    if on and not canUseBodycam() then
+        if Config.NotifyIfMissingBodycamProp then
+            Bodycam.Notify('~r~Bodycam unavailable (job/equipment)')
+        end
+        return
+    end
+    if on and Bodycam.sleeping and not Config.AllowManualActivationWhileSleeping then
+        Bodycam.Notify('~r~Sleeping mode blocks manual activation')
+        return
+    end
+
+    local was = Bodycam.active
+    Bodycam.active = on
+    if on and (sourceKind == 'auto_taser' or sourceKind == 'auto_firearm') then
+        Bodycam.autoLockUntil = GetGameTimer() + (Config.AutoTriggerMinimumActiveSeconds * 1000)
+    end
+
+    SendNUIMessage({
+        type = 'bodycam_state',
+        active = on,
+        sleeping = Bodycam.sleeping,
+        auto = sourceKind and sourceKind:find('auto') ~= nil,
+    })
+
+    if Config.EnableBodycamSounds and Bodycam.personal.sound then
+        if on and (sourceKind ~= 'auto' or Config.PlaySoundOnAutoActivation) then
+            NuiAudio.Play(Config.ActivationSoundFile)
+        elseif not on and was then
+            NuiAudio.Play(Config.DeactivationSoundFile)
+        end
+    end
+
+    CameraClient.Apply(on)
+
+    if on then
+        TriggerServerEvent('bodycam:server:getOrCreateIncident')
+    end
+end
+
+function Bodycam.Notify(msg)
+    BeginTextCommandThefeedPost('STRING')
+    AddTextComponentSubstringPlayerName(msg)
+    EndTextCommandThefeedPostTicker(false, false)
+end
+
+function Bodycam.ToggleManual()
+    if not canUseBodycam() then return end
+    if Bodycam.active and GetGameTimer() < Bodycam.autoLockUntil then
+        Bodycam.Notify('~o~Auto-activation lock active')
+        return
+    end
+    Bodycam.SetActive(not Bodycam.active, Bodycam.active and 'manual_off' or 'manual_on')
+end
+
+RegisterNetEvent('bodycam:client:incidentId', function(id)
+    Bodycam.incidentId = id
+    SendNUIMessage({ type = 'incident', id = id })
+end)
+
+RegisterNetEvent('bodycam:client:notify', function(msg)
+    Bodycam.Notify(msg)
+end)
+
+CreateThread(function()
+    while true do
+        if Bodycam.active and Config.AutoDisableIfNoLongerEquipped and not EquipmentClient.IsEquipped() then
+            Bodycam.SetActive(false, 'equipment_invalidated')
+            Bodycam.Notify('~r~Bodycam off (equipment)')
+        end
+        Wait(2000)
+    end
+end)

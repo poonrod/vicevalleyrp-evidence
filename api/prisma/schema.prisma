@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum GlobalRole {
+  super_admin
+  command_staff
+  evidence_tech
+  officer
+  viewer
+}
+
+enum EvidenceType {
+  image
+  video
+  other
+}
+
+enum ArchiveStatus {
+  none
+  archived
+}
+
+model User {
+  id           String    @id @default(uuid())
+  discordId    String    @unique
+  username     String
+  avatar       String?
+  globalRole   GlobalRole @default(viewer)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  officerProfile        OfficerProfile?
+  personalBodycam       PersonalBodycamSetting?
+  incidentsCreated      Incident[]              @relation("IncidentCreator")
+  evidenceNotes         EvidenceNote[]
+  chainEntries          ChainOfCustodyEntry[]
+  accessLogs            AccessLog[]
+  retentionUpdates      RetentionPolicySetting[] @relation("RetentionUpdatedBy")
+  adminAuditLogs        AdminAuditLog[]
+}
+
+model OfficerProfile {
+  id                     String   @id @default(uuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  officerName            String?
+  badgeNumber            String?
+  department             String?
+  callsign               String?
+  storageNamespace       String   @default("default")
+  preferredStorageBucket String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model PersonalBodycamSetting {
+  id                     String   @id @default(uuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sleepingMode           Boolean  @default(false)
+  autoTaserEnabled       Boolean  @default(true)
+  autoFirearmEnabled     Boolean  @default(true)
+  soundEnabled           Boolean  @default(true)
+  forceFirstPersonEnabled Boolean @default(true)
+  lowStorageModeEnabled  Boolean  @default(false)
+  updatedAt              DateTime @updatedAt
+}
+
+model Incident {
+  id              String   @id @default(uuid())
+  incidentId      String   @unique
+  title           String?
+  description     String?  @db.Text
+  caseNumber      String?
+  createdByUserId String?
+  createdBy       User?    @relation("IncidentCreator", fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  evidence EvidenceItem[]
+}
+
+model EvidenceItem {
+  id                      String    @id @default(uuid())
+  incidentBusinessId      String?
+  incident                Incident? @relation(fields: [incidentBusinessId], references: [incidentId], onDelete: SetNull)
+
+  evidenceGroupId         String?
+  segmentIndex            Int?
+
+  caseNumber              String?
+  type                    EvidenceType
+  captureType             String
+  videoTier               String?
+
+  officerName             String?
+  officerIdentifier       String?
+  officerBadgeNumber      String?
+  officerDepartment       String?
+  officerCallsign         String?
+  officerDiscordId        String
+  playerServerId          Int?
+  gameLicenseIdentifier   String?
+
+  timestampUtc            DateTime
+  uploadedAt              DateTime  @default(now())
+
+  storageProvider         String    @default("r2")
+  storageBucket           String
+  storageNamespace        String    @default("default")
+  storageKey              String    @unique
+  fileName                String
+  mimeType                String
+  fileSize                Int
+  durationSeconds         Float?
+  resolution              String?
+  bitrateKbps             Int?
+  codec                   String?
+  sha256                  String?
+
+  locationX               Float?
+  locationY               Float?
+  locationZ               Float?
+  heading                 Float?
+  streetName              String?
+  weaponName              String?
+
+  activationSource        String?
+  wasAutoActivated        Boolean   @default(false)
+  autoActivationReason    String?
+  triggerDetectedAtUtc    DateTime?
+  preEventEvidenceAttached Boolean  @default(false)
+  sleepingModeAtCapture   Boolean   @default(false)
+  equippedStateAtCapture  Boolean   @default(true)
+  soundPlayedOnActivation Boolean   @default(false)
+
+  retentionClass          String    @default("default")
+  retentionUntil          DateTime?
+  scheduledDeletionAt     DateTime?
+  legalHold               Boolean   @default(false)
+  manualRetainUntil       DateTime?
+  archiveStatus           ArchiveStatus @default(none)
+  isArchived              Boolean   @default(false)
+  isDeleted               Boolean   @default(false)
+  deletedAt               DateTime?
+  deletedByUserId         String?
+  deletionReason          String?
+  softDeletedAt           DateTime?
+
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  tags                    EvidenceTag[]
+  notes                   EvidenceNote[]
+  chainEntries            ChainOfCustodyEntry[]
+  accessLogs              AccessLog[]
+
+  @@index([officerDiscordId])
+  @@index([caseNumber])
+  @@index([scheduledDeletionAt])
+  @@index([incidentBusinessId])
+  @@index([evidenceGroupId])
+  @@index([createdAt])
+}
+
+model EvidenceTag {
+  id         String       @id @default(uuid())
+  evidenceId String
+  evidence   EvidenceItem @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  tag        String
+  createdAt  DateTime     @default(now())
+
+  @@unique([evidenceId, tag])
+}
+
+model EvidenceNote {
+  id           String       @id @default(uuid())
+  evidenceId   String
+  evidence     EvidenceItem @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  authorUserId String
+  author       User         @relation(fields: [authorUserId], references: [id])
+  note         String       @db.Text
+  createdAt    DateTime     @default(now())
+}
+
+model ChainOfCustodyEntry {
+  id          String       @id @default(uuid())
+  evidenceId  String
+  evidence    EvidenceItem @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  actorUserId String?
+  actor       User?        @relation(fields: [actorUserId], references: [id])
+  action      String
+  details     String?      @db.Text
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime     @default(now())
+}
+
+model AccessLog {
+  id         String       @id @default(uuid())
+  evidenceId String
+  evidence   EvidenceItem @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?        @relation(fields: [userId], references: [id])
+  action     String
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime     @default(now())
+}
+
+model RetentionPolicySetting {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  value           Json
+  updatedByUserId String?
+  updatedBy       User?    @relation("RetentionUpdatedBy", fields: [updatedByUserId], references: [id])
+  updatedAt       DateTime @updatedAt
+}
+
+model AdminAuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  category    String
+  action      String
+  details     Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+}

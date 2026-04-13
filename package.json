@@ -1,0 +1,24 @@
+{
+  "name": "vicevalleyrp-evidence",
+  "private": true,
+  "workspaces": [
+    "api",
+    "web",
+    "shared"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w api",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w shared && npm run build -w api && npm run build -w web",
+    "db:migrate": "npm run db:migrate -w api",
+    "db:seed": "npm run db:seed -w api",
+    "db:generate": "npm run db:generate -w api",
+    "hostinger:build:api": "npm run build -w shared && npm run db:generate -w api && npm run build -w api",
+    "hostinger:start:api": "npm run start -w api",
+    "hostinger:build:web": "npm run build -w shared && npm run build -w web",
+    "hostinger:start:web": "npm run start -w web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

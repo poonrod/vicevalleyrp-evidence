@@ -1,0 +1,97 @@
+import {
+  S3Client,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+  PutObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { StorageProvider, PresignedResult } from "./StorageProvider";
+
+export class S3CompatibleStorage implements StorageProvider {
+  readonly kind: "r2" | "s3" | "s3_compatible";
+  private client: S3Client;
+  private bucket: string;
+
+  constructor(opts: {
+    kind: "r2" | "s3" | "s3_compatible";
+    bucket: string;
+    region: string;
+    endpoint?: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    forcePathStyle?: boolean;
+  }) {
+    this.kind = opts.kind;
+    this.bucket = opts.bucket;
+    this.client = new S3Client({
+      region: opts.region,
+      endpoint: opts.endpoint,
+      credentials: {
+        accessKeyId: opts.accessKeyId,
+        secretAccessKey: opts.secretAccessKey,
+      },
+      forcePathStyle: opts.forcePathStyle ?? !!opts.endpoint,
+    });
+  }
+
+  getBucket(): string {
+    return this.bucket;
+  }
+
+  async createPresignedUploadUrl(params: {
+    key: string;
+    contentType: string;
+    contentLength?: number;
+    expiresSeconds: number;
+  }): Promise<PresignedResult> {
+    const cmd = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: params.key,
+      ContentType: params.contentType,
+      ...(params.contentLength != null ? { ContentLength: params.contentLength } : {}),
+    });
+    const url = await getSignedUrl(this.client, cmd, { expiresIn: params.expiresSeconds });
+    return {
+      url,
+      storageKey: params.key,
+      bucket: this.bucket,
+      expiresInSeconds: params.expiresSeconds,
+    };
+  }
+
+  async createPresignedDownloadUrl(params: {
+    key: string;
+    expiresSeconds: number;
+  }): Promise<{ url: string; expiresInSeconds: number }> {
+    const cmd = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: params.key,
+    });
+    const url = await getSignedUrl(this.client, cmd, { expiresIn: params.expiresSeconds });
+    return { url, expiresInSeconds: params.expiresSeconds };
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      })
+    );
+  }
+
+  async objectExists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        })
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}

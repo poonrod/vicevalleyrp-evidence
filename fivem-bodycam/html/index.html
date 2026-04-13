@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bodycam HUD</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="hud" class="hud hidden">
+      <div class="rec"><span class="dot"></span> REC</div>
+      <div class="meta">
+        <div id="line1"></div>
+        <div id="line2"></div>
+        <div id="line3"></div>
+      </div>
+    </div>
+    <div id="config" class="config hidden">
+      <div class="panel">
+        <h2>Bodycam settings</h2>
+        <p class="muted">Server policy may lock some options.</p>
+        <div id="status"></div>
+        <label><input type="checkbox" id="sleeping" /> Sleeping mode</label>
+        <label><input type="checkbox" id="autoTaser" /> Auto-engage taser</label>
+        <label><input type="checkbox" id="autoFirearm" /> Auto-engage firearm</label>
+        <label><input type="checkbox" id="sound" /> Sounds</label>
+        <label><input type="checkbox" id="firstPerson" /> First person (personal)</label>
+        <label><input type="checkbox" id="lowStorage" /> Low storage mode</label>
+        <div class="actions">
+          <button id="save">Apply</button>
+          <button id="close">Close</button>
+        </div>
+      </div>
+    </div>
+    <audio id="player" preload="auto"></audio>
+    <script src="app.js"></script>
+  </body>
+</html>
