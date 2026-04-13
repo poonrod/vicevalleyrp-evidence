@@ -104,7 +104,7 @@ If remote MySQL access from home is disabled, use **Hostinger SSH** (if your pla
 
 8. Deploy and check logs until the build succeeds. Test: `https://api.yourdomain.com/health` should return `{"ok":true}`.
 
-   **Note:** Hostinger often runs `npm install` in **production** mode (skipping `devDependencies`). This repo keeps **`typescript`** and the **`prisma`** CLI in **`dependencies`** for `shared` and `api` so `tsc` and `prisma generate` are available during the build. If you see `tsc: command not found`, pull the latest repo and redeploy.
+   **Note:** Hostinger often runs `npm install` in **production** mode (skipping `devDependencies`). This repo keeps **`typescript`**, **`prisma`**, and **`@types/*`** needed for **`tsc`** in **`dependencies`** (`shared`, `api`, and `web`) so builds succeed. If you see `tsc: command not found` or missing types for `express` / `cors`, pull the latest `main` and redeploy.
 
 #### A.5 Website #2 — **Web** (Next.js)
 
