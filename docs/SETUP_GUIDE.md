@@ -102,9 +102,11 @@ If remote MySQL access from home is disabled, use **Hostinger SSH** (if your pla
 
    `https://api.yourdomain.com/auth/discord/callback`
 
-8. Deploy and check logs until the build succeeds. Test: `https://api.yourdomain.com/health` should return `{"ok":true}`.
+8. If hPanel asks for **Output directory** and **Entry file** (some plans show this even for “Other”): **`hostinger:build:api`** ends by copying **`api/dist` → `dist/`** at the repo root (`scripts/sync-api-dist.js`), so set **Output directory** to **`dist`** and **Entry file** to **`server.js`** (if the UI resolves the entry relative to the output folder, that matches `dist/server.js`). **`hostinger:start:api`** runs **`node dist/server.js`** from the repository root so Node can resolve hoisted workspace packages in root **`node_modules`**.
 
-   **Note:** Hostinger often runs `npm install` in **production** mode (skipping `devDependencies`). This repo keeps **`typescript`**, **`prisma`**, and **`@types/*`** in **`dependencies`**, also adds **`typescript`** + **`prisma`** at the **repo root**, and uses **`npx tsc`** / **`npx prisma generate`** in build scripts so the compiler is found even when `PATH` omits workspace `node_modules/.bin`. If the dashboard blames **Entry file** / **Output directory** but the log shows **`tsc: command not found`**, fix the TypeScript step first (pull latest `main`), then confirm **Output directory** = `api/dist` and **Entry file** = `server.js`.
+9. Deploy and check logs until the build succeeds. Test: `https://api.yourdomain.com/health` should return `{"ok":true}`.
+
+   **Note:** Hostinger often runs `npm install` in **production** mode (skipping `devDependencies`). This repo keeps **`typescript`**, **`prisma`**, and **`@types/*`** in **`dependencies`**, also adds **`typescript`** + **`prisma`** at the **repo root**, and uses **`npx tsc`** / **`npx prisma generate`** in build scripts so the compiler is found even when `PATH` omits workspace `node_modules/.bin`. If the dashboard blames **Entry file** / **Output directory** but the log shows **`tsc: command not found`**, fix the TypeScript step first (pull latest `main`), then use the **`dist`** / **`server.js`** values above. If their UI instead expects paths from repo root only, try **Entry file** **`dist/server.js`** with **Output directory** **`.`** or empty per their docs.
 
 #### A.5 Website #2 — **Web** (Next.js)
 
