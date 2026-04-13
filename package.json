@@ -14,7 +14,7 @@
     "db:seed": "npm run db:seed -w api",
     "db:generate": "npm run db:generate -w api",
     "hostinger:build:api": "npm run build -w shared && npm run db:generate -w api && npm run build -w api && node scripts/sync-api-dist.js",
-    "hostinger:start:api": "node dist/server.js",
+    "hostinger:start:api": "node server.js",
     "hostinger:build:web": "npm run build -w shared && npm run build -w web",
     "hostinger:start:web": "npm run start -w web"
   },
