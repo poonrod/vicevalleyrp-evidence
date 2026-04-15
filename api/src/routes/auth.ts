@@ -75,6 +75,10 @@ authRouter.get("/discord/login", (req, res) => {
     scope: "identify email",
     state,
   });
+  console.log("[auth] discord/login → authorize", {
+    redirect_uri: env.DISCORD_CALLBACK_URL,
+    client_id: env.DISCORD_CLIENT_ID,
+  });
   res.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`);
 });
 
@@ -112,6 +116,14 @@ authRouter.get("/discord/callback", async (req, res) => {
     grant_type: "authorization_code",
     code,
     redirect_uri: env.DISCORD_CALLBACK_URL,
+  });
+
+  console.log("[auth] discord/callback → token exchange", {
+    code_length: code.length,
+    userAgent: req.get("user-agent") ?? "(none)",
+    xForwardedFor: req.get("x-forwarded-for") ?? "(none)",
+    redirect_uri: env.DISCORD_CALLBACK_URL,
+    client_id: env.DISCORD_CLIENT_ID,
   });
 
   const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
