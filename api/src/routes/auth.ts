@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { Router } from "express";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
@@ -26,6 +26,29 @@ function stringFromQuery(raw: unknown): string | undefined {
   return t.length ? t : undefined;
 }
 
+/** Stateless OAuth2 state (works with multiple Node workers; no session affinity). */
+function buildDiscordOAuthState(): string {
+  const nonce = randomBytes(16).toString("hex");
+  const sig = createHmac("sha256", env.SESSION_SECRET).update(nonce).digest("hex");
+  return `${nonce}.${sig}`;
+}
+
+function verifyDiscordOAuthState(state: string | undefined): boolean {
+  if (!state || typeof state !== "string") return false;
+  const dot = state.indexOf(".");
+  if (dot <= 0 || dot === state.length - 1) return false;
+  const nonce = state.slice(0, dot);
+  const sig = state.slice(dot + 1);
+  if (nonce.length < 16 || sig.length < 32) return false;
+  const expected = createHmac("sha256", env.SESSION_SECRET).update(nonce).digest("hex");
+  if (sig.length !== expected.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(sig, "utf8"), Buffer.from(expected, "utf8"));
+  } catch {
+    return false;
+  }
+}
+
 function oauthCallbackHtml(title: string, body: string): string {
   const safe = body
     .replace(/&/g, "&amp;")
@@ -44,8 +67,7 @@ authRouter.get("/discord/login", (req, res) => {
   if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
     return res.status(503).json({ error: "Discord OAuth not configured" });
   }
-  const state = randomBytes(24).toString("hex");
-  req.session.discordOAuthState = state;
+  const state = buildDiscordOAuthState();
   const params = new URLSearchParams({
     client_id: env.DISCORD_CLIENT_ID,
     redirect_uri: env.DISCORD_CALLBACK_URL,
@@ -69,17 +91,12 @@ authRouter.get("/discord/callback", async (req, res) => {
   }
 
   const stateQ = stringFromQuery(req.query.state);
-  const expectedState = req.session.discordOAuthState;
-  delete req.session.discordOAuthState;
-  if (!expectedState || !stateQ || stateQ !== expectedState) {
-    console.error("[auth] Discord OAuth state mismatch (prefetch, stale tab, or missing session cookie)", {
-      hasSessionState: !!expectedState,
-      hasQueryState: !!stateQ,
-    });
+  if (!stateQ || !verifyDiscordOAuthState(stateQ)) {
+    console.error("[auth] Discord OAuth state invalid or missing (wrong secret rotation, truncated URL, or forged state)");
     return res.status(400).type("html").send(
       oauthCallbackHtml(
-        "Sign-in session expired or interrupted",
-        "Start again from the evidence portal (Continue with Discord). Do not bookmark the callback URL.\n\nIf this keeps happening: try another browser or disable link-preview / HTTPS-scan features that open links in the background."
+        "Sign-in link was invalid or expired",
+        "Open the evidence portal and use “Continue with Discord” again. Do not bookmark the callback URL.\n\nIf this persists after a fresh attempt, confirm the API was not restarted between clicking Discord and returning (rare), and that nothing is stripping query parameters from the URL."
       )
     );
   }

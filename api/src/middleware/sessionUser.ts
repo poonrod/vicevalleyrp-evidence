@@ -5,8 +5,6 @@ import { prisma } from "../lib/prisma";
 declare module "express-session" {
   interface SessionData {
     userId?: string;
-    /** CSRF / prefetch guard for Discord OAuth (cleared after callback). */
-    discordOAuthState?: string;
   }
 }
 
