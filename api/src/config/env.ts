@@ -1,5 +1,10 @@
 import "dotenv/config";
 
+/** Discord compares redirect_uri as an exact string; trailing slashes often cause invalid_grant. */
+function normalizeDiscordCallbackUrl(raw: string): string {
+  return raw.trim().replace(/\/+$/, "");
+}
+
 function req(name: string, fallback?: string): string {
   const v = process.env[name] ?? fallback;
   if (v === undefined || v === "") throw new Error(`Missing env: ${name}`);
@@ -16,10 +21,10 @@ export const env = {
 
   DISCORD_CLIENT_ID: (process.env.DISCORD_CLIENT_ID ?? "").trim(),
   DISCORD_CLIENT_SECRET: (process.env.DISCORD_CLIENT_SECRET ?? "").trim(),
-  DISCORD_CALLBACK_URL: (
+  DISCORD_CALLBACK_URL: normalizeDiscordCallbackUrl(
     process.env.DISCORD_CALLBACK_URL ?? "http://localhost:4000/auth/discord/callback"
-  ).trim(),
-  WEB_APP_URL: process.env.WEB_APP_URL ?? "http://localhost:3000",
+  ),
+  WEB_APP_URL: (process.env.WEB_APP_URL ?? "http://localhost:3000").trim().replace(/\/+$/, ""),
 
   FIVEM_API_SECRET: process.env.FIVEM_API_SECRET ?? "",
 
