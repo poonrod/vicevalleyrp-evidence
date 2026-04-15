@@ -14,9 +14,11 @@ export const env = {
     "mysql://evidence:evidence@127.0.0.1:3306/evidence",
   SESSION_SECRET: req("SESSION_SECRET", "dev-change-me-in-production-min-32-chars!!"),
 
-  DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID ?? "",
-  DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET ?? "",
-  DISCORD_CALLBACK_URL: process.env.DISCORD_CALLBACK_URL ?? "http://localhost:4000/auth/discord/callback",
+  DISCORD_CLIENT_ID: (process.env.DISCORD_CLIENT_ID ?? "").trim(),
+  DISCORD_CLIENT_SECRET: (process.env.DISCORD_CLIENT_SECRET ?? "").trim(),
+  DISCORD_CALLBACK_URL: (
+    process.env.DISCORD_CALLBACK_URL ?? "http://localhost:4000/auth/discord/callback"
+  ).trim(),
   WEB_APP_URL: process.env.WEB_APP_URL ?? "http://localhost:3000",
 
   FIVEM_API_SECRET: process.env.FIVEM_API_SECRET ?? "",

@@ -37,6 +37,12 @@ authRouter.get("/discord/callback", async (req, res) => {
   });
 
   if (!tokenRes.ok) {
+    const discordErr = await tokenRes.text().catch(() => "");
+    console.error("[auth] Discord token exchange failed", {
+      status: tokenRes.status,
+      discord: discordErr.slice(0, 500),
+      redirect_uri_used: env.DISCORD_CALLBACK_URL,
+    });
     return res.status(401).send("Discord token exchange failed");
   }
   const tokenJson = (await tokenRes.json()) as { access_token: string };
