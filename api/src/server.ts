@@ -40,6 +40,43 @@ app.use(
 const limiter = rateLimit({ windowMs: 60_000, max: 200 });
 app.use(limiter);
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+app.get("/", (_req, res) => {
+  const portal = env.WEB_APP_URL;
+  res.type("html").send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Vice Valley Evidence API</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 36rem; margin: 3rem auto; padding: 0 1rem;
+      color: #e4e4e7; background: #09090b; line-height: 1.5; }
+    a { color: #60a5fa; }
+    code { background: #27272a; padding: 0.15em 0.35em; border-radius: 4px; font-size: 0.9em; }
+    .muted { color: #a1a1aa; font-size: 0.9rem; margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>Vice Valley Evidence API</h1>
+  <p>This host serves the API and Discord OAuth. The web portal lives on your evidence domain.</p>
+  <ul>
+    <li><a href="${encodeURI(portal)}">Open evidence portal</a> <span class="muted">(${escapeHtml(portal)})</span></li>
+    <li><a href="/auth/discord/login">Discord sign-in</a></li>
+    <li><a href="/health">Health</a> — <code>{"ok":true}</code> is normal for monitors</li>
+  </ul>
+  <p class="muted">If you expected a full website here, open the portal link above — the API is not the Next.js UI.</p>
+</body>
+</html>`);
+});
+
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/auth", authRouter);
