@@ -486,7 +486,7 @@ Add **convars** (same secret as `FIVEM_API_SECRET` in `api\.env`):
 set bodycam_api_base "http://127.0.0.1:4000"
 set bodycam_api_secret "paste-exact-same-value-as-FIVEM_API_SECRET"
 
-# qbcore | esx | standalone (standalone uses a test job hack — see below)
+# c7fw | standalone (standalone uses a test job hack — see below)
 set bodycam_framework "standalone"
 ```
 
@@ -505,9 +505,9 @@ Open `fivem-bodycam\config.lua`:
 
 - **`Config.AllowedJobs`** — job names that may use the bodycam (must match your framework’s `job.name` strings).
 - **`Config.RequireBodycamProp`** — leave `false` until uniforms are configured.
-- **`Config.Framework`** — should match `bodycam_framework` convar. Use `qbcore` for QBCore, **`c7fw`** for [C7 Framework V3](https://docs.c7scripts.com/paid/c7fw) (see [exports](https://docs.c7scripts.com/paid/c7fw/developers/exports.md)); optional `setr bodycam_c7fw_resource "c7-scripts-framework-v3"` if the resource name differs. Align **`AllowedJobs`** with C7 `char_department` values.
+- **`Config.Framework`** — should match `bodycam_framework` convar. Use **`c7fw`** for [C7 Framework V3](https://docs.c7scripts.com/paid/c7fw) (see [exports](https://docs.c7scripts.com/paid/c7fw/developers/exports.md)); optional `setr bodycam_c7fw_resource "c7-scripts-framework-v3"` if the resource name differs. Align **`AllowedJobs`** with C7 `char_department` values.
 
-**Standalone / quick test:** the client sets `LocalPlayer.state.jobName` to `police` after a delay so `AllowedJobs = { "police" }` works without QBCore. For real RP, wire QBCore/ESX properly.
+**Standalone / quick test:** the client sets `LocalPlayer.state.jobName` to `police` after a delay so `AllowedJobs = { "police" }` works without C7FW. For production with C7, use `c7fw` and real department IDs.
 
 ---
 
@@ -584,7 +584,7 @@ The file must finish uploading to R2 **before** the API runs `complete`. Slow ne
 
 ### Job restriction: bodycam never works
 
-- For QBCore, ensure job name is in `Config.AllowedJobs` and sync `jobName` to state bags from server (replace the standalone hack).
+- For **c7fw**, ensure department IDs from `GetCharDept` are listed in `Config.AllowedJobs`. For **standalone**, sync `jobName` to state bags from your own server logic (or use the client test hack only on dev servers).
 - Or temporarily set `Config.RestrictToLawEnforcement = false` **only on a test server** to confirm the pipeline works.
 
 ---

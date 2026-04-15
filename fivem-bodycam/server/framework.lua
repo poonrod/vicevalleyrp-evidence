@@ -38,21 +38,7 @@ local function c7CharDiscordID(src)
     return ok and id or nil
 end
 
-local function qb()
-    local ok, core = pcall(function()
-        return exports["qb-core"]:GetCoreObject()
-    end)
-    return ok and core or nil
-end
-
 function Framework.GetPlayer(src)
-    if Config.Framework == "qbcore" then
-        local QBCore = qb()
-        if not QBCore then
-            return nil
-        end
-        return QBCore.Functions.GetPlayer(src)
-    end
     if Config.Framework == "c7fw" then
         return c7ActiveCharacter(src)
     end
@@ -69,12 +55,6 @@ function Framework.GetDiscordId(src)
         local char = c7ActiveCharacter(src)
         if char and char.char_discord then
             return tostring(char.char_discord):gsub("^discord:", "")
-        end
-    end
-    if Config.Framework == "qbcore" then
-        local p = Framework.GetPlayer(src)
-        if p and p.PlayerData and p.PlayerData.discord then
-            return tostring(p.PlayerData.discord):gsub("discord:", "")
         end
     end
     for _, ident in ipairs(GetPlayerIdentifiers(src)) do
@@ -98,12 +78,6 @@ function Framework.GetJobName(src)
             end
         end
     end
-    if Config.Framework == "qbcore" then
-        local p = Framework.GetPlayer(src)
-        if p and p.PlayerData and p.PlayerData.job then
-            return p.PlayerData.job.name, p.PlayerData.job.label
-        end
-    end
     return "standalone", "CIV"
 end
 
@@ -117,13 +91,6 @@ function Framework.GetCharacterName(src)
             if ok and name and tostring(name) ~= "" then
                 return tostring(name)
             end
-        end
-    end
-    if Config.Framework == "qbcore" then
-        local p = Framework.GetPlayer(src)
-        if p and p.PlayerData and p.PlayerData.charinfo then
-            local c = p.PlayerData.charinfo
-            return (c.firstname or "") .. " " .. (c.lastname or "")
         end
     end
     return GetPlayerName(src) or "Officer"
@@ -157,13 +124,6 @@ function Framework.GetBadgeDepartmentCallsign(src)
         local deptLabel = (dept and tostring(dept) ~= "") and tostring(dept):upper() or "LSPD"
         local unit = (cs and tostring(cs) ~= "") and tostring(cs) or "UNIT-1"
         return grade, deptLabel, unit
-    end
-    if Config.Framework == "qbcore" then
-        local p = Framework.GetPlayer(src)
-        if p and p.PlayerData and p.PlayerData.job then
-            local j = p.PlayerData.job
-            return j.grade and j.grade.name, j.label, j.onduty and "UNIT-1" or "UNIT"
-        end
     end
     return nil, "LSPD", "UNIT-1"
 end

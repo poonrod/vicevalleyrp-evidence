@@ -11,10 +11,10 @@
 ```
 set bodycam_api_base "http://127.0.0.1:4000"
 set bodycam_api_secret "your-secret"
-set bodycam_framework "qbcore"
+set bodycam_framework "standalone"
 ```
 
-**C7 Framework V3** — set framework to `c7fw` and align `AllowedJobs` with C7 department IDs (`GetCharDept` / `char_department`, e.g. `lspd`):
+**C7 Framework V3** — set `bodycam_framework` to `c7fw` and align `AllowedJobs` in `config.lua` with C7 department IDs (`GetCharDept` / `char_department`, e.g. `lspd`):
 
 ```
 set bodycam_framework "c7fw"
