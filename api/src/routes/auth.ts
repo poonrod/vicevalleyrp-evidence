@@ -124,9 +124,13 @@ authRouter.get("/discord/callback", async (req, res) => {
     const discordErr = await tokenRes.text().catch(() => "");
     const detail = parseDiscordTokenErrorBody(discordErr);
     console.error("[auth] Discord token exchange failed", {
-      status: tokenRes.status,
-      discord: discordErr.slice(0, 500),
-      redirect_uri_used: env.DISCORD_CALLBACK_URL,
+      discordHttpStatus: tokenRes.status,
+      discordResponseBody: discordErr,
+      parsed: detail,
+      redirect_uri: env.DISCORD_CALLBACK_URL,
+      client_id: env.DISCORD_CLIENT_ID,
+      code_length: code.length,
+      grant_type: "authorization_code",
     });
     const hint =
       detail.includes("invalid_grant") || detail.includes("redirect_uri")
