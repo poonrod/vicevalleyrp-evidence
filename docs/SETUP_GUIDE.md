@@ -102,9 +102,20 @@ If remote MySQL access from home is disabled, use **Hostinger SSH** (if your pla
 
    `https://api.yourdomain.com/auth/discord/callback`
 
-8. If hPanel asks for **Output directory** and **Entry file**: the repo has a **root `server.js`** that only does `require("./dist/server.js")`, because Hostinger’s start step often runs **`node server.js` from the repository root** (and would not find the real entry inside `dist/` if the panel only checks the root). **`hostinger:build:api`** still copies **`api/dist` → `dist/`** (`scripts/sync-api-dist.js`). Set **Entry file** to **`server.js`** (repo root). Set **Output directory** to **`dist`** (or **`.`** if their UI treats “output” as the whole app — try **`dist`** first). **`hostinger:start:api`** runs **`node server.js`** from the repo root.
+8. **Output directory + Entry file (API is Node, not static HTML):** The evidence site can be served from **`web/out`** as static files. The **API cannot** — it must run as **Express on Node**. The repo root has **`server.js`** → `require("./dist/server.js")`. The build **`hostinger:build:api`** compiles TypeScript to **`api/dist`**, then **`scripts/sync-api-dist.js`** copies **`api/dist` → `./dist/`** at the **repository root** so the launcher and compiled API sit in one tree with **`node_modules/`**.
 
-9. Deploy and check logs until the build succeeds. Test: `https://api.yourdomain.com/health` should return `{"ok":true}`.
+   | hPanel field | Use for **API** site |
+   |--------------|----------------------|
+   | **Root directory** | `./` (where the root `package.json` is) |
+   | **Framework** | **Express.js** or **Other** — not “static only”, not Next.js |
+   | **Build command** | `npm install && npm run hostinger:build:api` |
+   | **Start command** | `npm run hostinger:start:api` (same as `node server.js`) |
+   | **Entry file** | **`server.js`** at **repo root** (not `api/dist/server.js` alone) |
+   | **Output directory** | **`.`** (repository root) |
+
+   **Why not `dist` alone?** If “Output directory” is only **`dist`**, some hosts run the app **from inside `dist/`**, where there is **no** `server.js` at the expected path → process never starts → gateway **503** on all URLs (including `/auth/discord/callback`). Use **`.`** so **`server.js`**, **`dist/`**, and **`node_modules/`** are all visible.
+
+9. Deploy and check logs until the build succeeds. Test: `https://api.yourdomain.com/health` should return `{"ok":true}`. If every path returns **503**, treat it as **Node not listening** until logs show a clean start (`API listening on :…`).
 
    **Note:** Hostinger often runs `npm install` in **production** mode (skipping `devDependencies`). This repo keeps **`typescript`**, **`prisma`**, and **`@types/*`** in **`dependencies`**, also adds **`typescript`** + **`prisma`** at the **repo root**, and uses **`npx tsc`** / **`npx prisma generate`** in build scripts so the compiler is found even when `PATH` omits workspace `node_modules/.bin`. If the dashboard blames **Entry file** / **Output directory** but the log shows **`tsc: command not found`**, fix the TypeScript step first (pull latest `main`). If start still fails, confirm **Start command** is **`npm run hostinger:start:api`** (or **`node server.js`**) and that **Entry file** is the root **`server.js`**, not only a file under **`dist/`**.
 
@@ -133,7 +144,9 @@ If remote MySQL access from home is disabled, use **Hostinger SSH** (if your pla
 
 6. Assign this deployment to **`evidence.yourdomain.com`** (or your chosen portal hostname).
 
-7. Open `https://evidence.yourdomain.com` → Login → Discord should redirect through the **API** domain and return you to the dashboard.
+7. **If this deployment is “static website” / CDN (not Node):** use build `npm install && npm run hostinger:build:web`, set **Output directory** to **`web/out`**, and upload or publish the contents of `web/out` (see root `web` package — `output: "export"` in `next.config.mjs`). Do **not** use `web/.next` for static hosting. The **Node.js Web App** flow with **`npm run hostinger:start:web`** is separate.
+
+8. Open `https://evidence.yourdomain.com` → Login → Discord should redirect through the **API** domain and return you to the dashboard.
 
 #### A.6 FiveM
 
