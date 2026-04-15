@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { Router } from "express";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
@@ -15,6 +16,14 @@ function parseDiscordTokenErrorBody(raw: string): string {
     /* not JSON */
   }
   return trimmed || "(empty response)";
+}
+
+function stringFromQuery(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  return t.length ? t : undefined;
 }
 
 function oauthCallbackHtml(title: string, body: string): string {
@@ -35,11 +44,14 @@ authRouter.get("/discord/login", (req, res) => {
   if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
     return res.status(503).json({ error: "Discord OAuth not configured" });
   }
+  const state = randomBytes(24).toString("hex");
+  req.session.discordOAuthState = state;
   const params = new URLSearchParams({
     client_id: env.DISCORD_CLIENT_ID,
     redirect_uri: env.DISCORD_CALLBACK_URL,
     response_type: "code",
     scope: "identify email",
+    state,
   });
   res.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`);
 });
@@ -56,7 +68,23 @@ authRouter.get("/discord/callback", async (req, res) => {
       .send(oauthCallbackHtml("Discord sign-in cancelled or denied", msg));
   }
 
-  const code = req.query.code as string | undefined;
+  const stateQ = stringFromQuery(req.query.state);
+  const expectedState = req.session.discordOAuthState;
+  delete req.session.discordOAuthState;
+  if (!expectedState || !stateQ || stateQ !== expectedState) {
+    console.error("[auth] Discord OAuth state mismatch (prefetch, stale tab, or missing session cookie)", {
+      hasSessionState: !!expectedState,
+      hasQueryState: !!stateQ,
+    });
+    return res.status(400).type("html").send(
+      oauthCallbackHtml(
+        "Sign-in session expired or interrupted",
+        "Start again from the evidence portal (Continue with Discord). Do not bookmark the callback URL.\n\nIf this keeps happening: try another browser or disable link-preview / HTTPS-scan features that open links in the background."
+      )
+    );
+  }
+
+  const code = stringFromQuery(req.query.code);
   if (!code) {
     return res.status(400).type("html").send(oauthCallbackHtml("Missing code", "Discord did not return an authorization code. Start again from the evidence portal."));
   }
@@ -85,7 +113,7 @@ authRouter.get("/discord/callback", async (req, res) => {
     });
     const hint =
       detail.includes("invalid_grant") || detail.includes("redirect_uri")
-        ? "\n\nUsually: add this exact redirect URL in Discord → Application → OAuth2 → Redirects (no extra slash), and set DISCORD_CALLBACK_URL in Hostinger to the same string. Use the OAuth2 Client Secret, not the Bot token."
+        ? `\n\nChecklist:\n- DISCORD_CLIENT_ID in Hostinger must match this Discord application (Client ID below).\n- OAuth2 Client Secret from the same app (not the Bot token).\n- Redirect URL in Discord must match DISCORD_CALLBACK_URL exactly.\n- Do not refresh the callback page; use “Continue with Discord” again for a new code.\n- VPN / security scanners that pre-open URLs can burn the one-time code — try incognito or pause scanning for this domain.\n\nClient ID this server uses: ${env.DISCORD_CLIENT_ID}`
         : "";
     return res
       .status(401)
