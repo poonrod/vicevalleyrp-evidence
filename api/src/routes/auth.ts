@@ -1,6 +1,10 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { Router } from "express";
 import { env } from "../config/env";
+import {
+  claimDiscordOAuthAuthorizationCode,
+  releaseDiscordOAuthAuthorizationCodeClaim,
+} from "../lib/discordOAuthCodeReplayGuard";
 import { prisma } from "../lib/prisma";
 import { loadSessionUser, requireAuth } from "../middleware/sessionUser";
 
@@ -49,16 +53,55 @@ function verifyDiscordOAuthState(state: string | undefined): boolean {
   }
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function oauthCallbackHtml(title: string, body: string): string {
-  const safe = body
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><title>${title}</title>
+  const safe = escapeHtml(body);
+  const safeTitle = escapeHtml(title);
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><title>${safeTitle}</title>
 <style>body{font-family:system-ui,sans-serif;max-width:42rem;margin:2rem auto;padding:0 1rem;background:#09090b;color:#e4e4e7;line-height:1.5}
 pre{white-space:pre-wrap;background:#18181b;padding:1rem;border-radius:8px;font-size:0.9rem}
-a{color:#60a5fa}</style></head><body><h1>${title}</h1><pre>${safe}</pre>
+a{color:#60a5fa}</style></head><body><h1>${safeTitle}</h1><pre>${safe}</pre>
 <p><a href="/">API home</a> · <a href="/auth/discord/login">Try sign-in again</a></p></body></html>`;
+}
+
+const DISCORD_LOGIN_RETRY_PATH = "/auth/discord/login";
+
+/**
+ * invalid_grant from Discord often means the authorization code was already exchanged, expired,
+ * or never valid for this client — commonly from opening the callback twice, refreshing, browser
+ * prefetch, link scanners, VPN/security inspection, or duplicate in-flight requests.
+ */
+function oauthInvalidGrantRecoveryHtml(discordDetail: string): string {
+  const safeDetail = escapeHtml(discordDetail);
+  const clientId = escapeHtml(env.DISCORD_CLIENT_ID);
+  const redirectUri = escapeHtml(env.DISCORD_CALLBACK_URL);
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>
+<title>Discord sign-in needs a fresh link</title>
+<meta http-equiv="refresh" content="4;url=${DISCORD_LOGIN_RETRY_PATH}"/>
+<meta name="robots" content="noindex"/>
+<style>
+body{font-family:system-ui,sans-serif;max-width:42rem;margin:2rem auto;padding:0 1rem;background:#09090b;color:#e4e4e7;line-height:1.55}
+pre{white-space:pre-wrap;background:#18181b;padding:1rem;border-radius:8px;font-size:0.88rem;word-break:break-all}
+a{color:#60a5fa}
+.retry{display:inline-block;margin:1rem 0;padding:0.75rem 1.25rem;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600}
+.retry:hover{background:#1d4ed8}
+.note{color:#a1a1aa;font-size:0.9rem;margin-top:1.25rem}
+</style></head><body>
+<h1>Discord sign-in link could not be reused</h1>
+<p>Discord treats the sign-in link as <strong>one-time use</strong>. Something may have used it already — for example a duplicate tab, page refresh, browser prefetch, a link scanner, a VPN, or a security browser extension.</p>
+<p>You are not stuck: start a new sign-in and Discord will issue a fresh code.</p>
+<p><a class="retry" href="${DISCORD_LOGIN_RETRY_PATH}">Try signing in again</a></p>
+<p class="note">You can also wait a few seconds; this page will send you to the same place automatically.</p>
+<h2 style="font-size:1rem;margin-top:1.75rem">What Discord reported</h2>
+<pre>${safeDetail}</pre>
+<h2 style="font-size:1rem;margin-top:1.25rem">Server configuration (safe to share)</h2>
+<pre>client_id in use:\n${clientId}\n\nredirect_uri in use:\n${redirectUri}</pre>
+<p><a href="/">API home</a></p>
+<script>setTimeout(function(){ location.href = "${DISCORD_LOGIN_RETRY_PATH}"; }, 3800);</script>
+</body></html>`;
 }
 
 authRouter.use(loadSessionUser);
@@ -82,6 +125,12 @@ authRouter.get("/discord/login", (req, res) => {
   res.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`);
 });
 
+/**
+ * Discord returns a one-time `code` on this callback. It must be exchanged exactly once; a second
+ * request with the same code yields invalid_grant. Codes are easily "burned" accidentally by
+ * duplicate HTTP hits (refresh, back button, two tabs), link scanners, browser prefetch, or
+ * security/VPN tools that replay URLs.
+ */
 authRouter.get("/discord/callback", async (req, res) => {
   const oauthErr = req.query.error as string | undefined;
   const oauthDesc = req.query.error_description as string | undefined;
@@ -110,6 +159,28 @@ authRouter.get("/discord/callback", async (req, res) => {
     return res.status(400).type("html").send(oauthCallbackHtml("Missing code", "Discord did not return an authorization code. Start again from the evidence portal."));
   }
 
+  const codeAttempt = claimDiscordOAuthAuthorizationCode(code);
+
+  console.log("[auth] discord/callback hit", {
+    ts: new Date().toISOString(),
+    codeLength: code.length,
+    ua: req.headers["user-agent"],
+    xForwardedFor: req.headers["x-forwarded-for"],
+    remoteIp: req.socket?.remoteAddress,
+    referer: req.headers["referer"],
+    codeAttempt,
+  });
+
+  if (codeAttempt === "replay") {
+    console.warn("[auth] discord/callback replay guard: skipping token exchange (duplicate hit for same code)");
+    return res.status(400).type("html").send(
+      oauthCallbackHtml(
+        "Discord login link already used",
+        "This Discord login link was already used. Please try signing in again.\n\nIf you only clicked once, a browser extension, VPN, or security tool may have requested this URL twice."
+      )
+    );
+  }
+
   const form = new URLSearchParams({
     client_id: env.DISCORD_CLIENT_ID,
     client_secret: env.DISCORD_CLIENT_SECRET,
@@ -119,35 +190,56 @@ authRouter.get("/discord/callback", async (req, res) => {
   });
 
   console.log("[auth] discord/callback → token exchange", {
-    code_length: code.length,
-    userAgent: req.get("user-agent") ?? "(none)",
-    xForwardedFor: req.get("x-forwarded-for") ?? "(none)",
     redirect_uri: env.DISCORD_CALLBACK_URL,
     client_id: env.DISCORD_CLIENT_ID,
+    codeLength: code.length,
   });
 
-  const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString(),
-  });
+  let tokenRes: Response;
+  try {
+    tokenRes = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+  } catch (err) {
+    releaseDiscordOAuthAuthorizationCodeClaim(code);
+    console.error("[auth] Discord token exchange fetch error (claim released for possible retry)", err);
+    return res
+      .status(502)
+      .type("html")
+      .send(
+        oauthCallbackHtml(
+          "Could not reach Discord",
+          "The server could not complete the sign-in request to Discord. Check connectivity and try “Continue with Discord” again from the evidence portal."
+        )
+      );
+  }
 
   if (!tokenRes.ok) {
     const discordErr = await tokenRes.text().catch(() => "");
     const detail = parseDiscordTokenErrorBody(discordErr);
+    const lower = detail.toLowerCase();
+    const isInvalidGrant = lower.includes("invalid_grant");
     console.error("[auth] Discord token exchange failed", {
       discordHttpStatus: tokenRes.status,
       discordResponseBody: discordErr,
       parsed: detail,
       redirect_uri: env.DISCORD_CALLBACK_URL,
       client_id: env.DISCORD_CLIENT_ID,
-      code_length: code.length,
+      codeLength: code.length,
       grant_type: "authorization_code",
     });
-    const hint =
-      detail.includes("invalid_grant") || detail.includes("redirect_uri")
-        ? `\n\nChecklist:\n- DISCORD_CLIENT_ID in Hostinger must match this Discord application (Client ID below).\n- OAuth2 Client Secret from the same app (not the Bot token).\n- Redirect URL in Discord must match DISCORD_CALLBACK_URL exactly.\n- Do not refresh the callback page; use “Continue with Discord” again for a new code.\n- VPN / security scanners that pre-open URLs can burn the one-time code — try incognito or pause scanning for this domain.\n\nClient ID this server uses: ${env.DISCORD_CLIENT_ID}`
-        : "";
+    if (isInvalidGrant) {
+      return res
+        .status(200)
+        .set("Cache-Control", "no-store")
+        .type("html")
+        .send(oauthInvalidGrantRecoveryHtml(detail));
+    }
+    const hint = lower.includes("redirect_uri")
+      ? `\n\nChecklist:\n- DISCORD_CLIENT_ID in Hostinger must match this Discord application (Client ID below).\n- OAuth2 Client Secret from the same app (not the Bot token).\n- Redirect URL in Discord must match DISCORD_CALLBACK_URL exactly.\n- Do not refresh the callback page; use “Continue with Discord” again for a new code.\n- VPN / security scanners that pre-open URLs can burn the one-time code — try incognito or pause scanning for this domain.\n\nClient ID this server uses: ${env.DISCORD_CLIENT_ID}`
+      : "";
     return res
       .status(401)
       .type("html")
