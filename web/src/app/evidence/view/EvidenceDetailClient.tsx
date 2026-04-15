@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function EvidenceDetailPage() {
-  const { id } = useParams<{ id: string }>();
+export default function EvidenceDetailClient() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
   const router = useRouter();
   const [ev, setEv] = useState<Record<string, unknown> | null>(null);
   const [url, setUrl] = useState<string | null>(null);
@@ -15,20 +16,25 @@ export default function EvidenceDetailPage() {
   const [tag, setTag] = useState("");
   const [caseNum, setCaseNum] = useState("");
 
-  const load = () => {
+  const load = useCallback(() => {
+    if (!id) return;
     api<{ evidence: Record<string, unknown> }>(`/evidence/${id}`)
       .then((r) => {
         setEv(r.evidence);
         setCaseNum((r.evidence.caseNumber as string) ?? "");
       })
       .catch(() => router.push("/login"));
-  };
-
-  useEffect(() => {
-    load();
   }, [id, router]);
 
-  if (!ev) {
+  useEffect(() => {
+    if (!id) {
+      router.replace("/evidence");
+      return;
+    }
+    load();
+  }, [id, router, load]);
+
+  if (!id || !ev) {
     return (
       <div className="min-h-screen flex items-center justify-center text-zinc-500">
         Loading…

@@ -59,7 +59,7 @@ export default function EvidenceListPage() {
                 {rows.map((r) => (
                   <tr key={r.id} className="border-b border-zinc-800/80 hover:bg-zinc-900/50">
                     <td className="p-3">
-                      <Link href={`/evidence/${r.id}`} className="text-blue-400 hover:underline">
+                      <Link href={`/evidence/view?id=${encodeURIComponent(r.id)}`} className="text-blue-400 hover:underline">
                         {r.fileName}
                       </Link>
                     </td>

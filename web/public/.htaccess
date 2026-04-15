@@ -1,0 +1,4 @@
+RewriteEngine On
+# Legacy /evidence/<id> links → static view page with query string
+RewriteCond %{REQUEST_URI} !^/evidence/view
+RewriteRule ^evidence/([^/]+)/?$ /evidence/view/?id=$1 [R=302,L,QSA,NE]

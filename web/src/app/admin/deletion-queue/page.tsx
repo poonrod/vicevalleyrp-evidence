@@ -27,7 +27,7 @@ export default function DeletionQueuePage() {
         <div className="p-6 space-y-2">
           {items.map((i) => (
             <div key={i.id} className="glass p-3 flex justify-between text-sm">
-              <Link href={`/evidence/${i.id}`} className="text-blue-400 hover:underline">
+              <Link href={`/evidence/view?id=${encodeURIComponent(i.id)}`} className="text-blue-400 hover:underline">
                 {i.fileName}
               </Link>
               <span className="text-zinc-500">
