@@ -48,7 +48,7 @@ vicevalleyrp-evidence/
 
 6. **FiveM**  
    - Install [screenshot-basic](https://github.com/citizenfx/screenshot-basic) (or compatible uploader).  
-   - Set convars: `bodycam_api_base`, `bodycam_api_secret`, `bodycam_framework`.  
+   - Set convars: `bodycam_api_base`, `bodycam_api_secret`, `bodycam_framework` (`qbcore`, `c7fw` for [C7FW](https://docs.c7scripts.com/paid/c7fw), or `standalone`).  
    - See `fivem-bodycam/README.md`.
 
 ## Cloudflare R2 setup (beginner-friendly)

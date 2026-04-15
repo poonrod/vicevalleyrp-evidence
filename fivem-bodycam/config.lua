@@ -106,5 +106,5 @@ Config.IgnoredWeaponNames = {
     "WEAPON_UNARMED", "WEAPON_FLASHLIGHT", "WEAPON_NIGHTSTICK",
 }
 
--- Framework: qbcore | esx | standalone
+-- Framework: qbcore | c7fw | standalone (C7FW: https://docs.c7scripts.com/paid/c7fw )
 Config.Framework = GetConvar('bodycam_framework', 'standalone')

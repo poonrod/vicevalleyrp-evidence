@@ -505,7 +505,7 @@ Open `fivem-bodycam\config.lua`:
 
 - **`Config.AllowedJobs`** — job names that may use the bodycam (must match your framework’s `job.name` strings).
 - **`Config.RequireBodycamProp`** — leave `false` until uniforms are configured.
-- **`Config.Framework`** — should match `bodycam_framework` convar; for real QBCore use `qbcore` and extend `server/framework.lua` / job sync as needed.
+- **`Config.Framework`** — should match `bodycam_framework` convar. Use `qbcore` for QBCore, **`c7fw`** for [C7 Framework V3](https://docs.c7scripts.com/paid/c7fw) (see [exports](https://docs.c7scripts.com/paid/c7fw/developers/exports.md)); optional `setr bodycam_c7fw_resource "c7-scripts-framework-v3"` if the resource name differs. Align **`AllowedJobs`** with C7 `char_department` values.
 
 **Standalone / quick test:** the client sets `LocalPlayer.state.jobName` to `police` after a delay so `AllowedJobs = { "police" }` works without QBCore. For real RP, wire QBCore/ESX properly.
 

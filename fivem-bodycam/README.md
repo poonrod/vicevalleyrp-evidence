@@ -4,6 +4,7 @@
 
 - **screenshot-basic** (or compatible resource that can upload to a **presigned PUT** URL).  
 - Running **evidence API** with `FIVEM_API_SECRET` and R2/S3 configured.
+- **C7 Framework V3** (optional): [C7FW documentation](https://docs.c7scripts.com/paid/c7fw) — this resource uses [server exports](https://docs.c7scripts.com/paid/c7fw/developers/exports.md) from `c7-scripts-framework-v3` when `bodycam_framework` is `c7fw`.
 
 ## Server convars
 
@@ -11,6 +12,14 @@
 set bodycam_api_base "http://127.0.0.1:4000"
 set bodycam_api_secret "your-secret"
 set bodycam_framework "qbcore"
+```
+
+**C7 Framework V3** — set framework to `c7fw` and align `AllowedJobs` with C7 department IDs (`GetCharDept` / `char_department`, e.g. `lspd`):
+
+```
+set bodycam_framework "c7fw"
+# Optional if your C7 resource folder is renamed:
+# setr bodycam_c7fw_resource "c7-scripts-framework-v3"
 ```
 
 ## Commands & keys
