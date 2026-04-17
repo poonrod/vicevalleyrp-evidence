@@ -1,3 +1,4 @@
+import "../src/config/env";
 import { PrismaClient } from "@prisma/client";
 import { DEFAULT_RETENTION_SETTINGS, RETENTION_KEYS } from "../src/modules/retention/settings";
 

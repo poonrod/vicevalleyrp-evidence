@@ -308,7 +308,7 @@ authRouter.get("/discord/callback", async (req, res) => {
       .send(
         oauthCallbackHtml(
           "Sign-in could not be completed",
-          "Discord accepted this sign-in, but the API could not use the database (check DATABASE_URL: user, password, host, and database name on the server). After fixing credentials, use “Continue with Discord” again — the previous callback link cannot be reused."
+          "Discord accepted this sign-in, but the API could not use the database (check DATABASE_URL, or DB_HOST / DB_USER / DB_PASSWORD / DB_NAME if you use split env vars). After fixing credentials, use “Continue with Discord” again — the previous callback link cannot be reused."
         )
       );
   }

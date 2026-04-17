@@ -5,6 +5,34 @@ function normalizeDiscordCallbackUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
 }
 
+/**
+ * Prefer `DATABASE_URL` when set. Otherwise build from `DB_USER`, `DB_PASSWORD`, `DB_HOST`,
+ * `DB_NAME`, optional `DB_PORT` (default 3306) so Hostinger-style split vars stay readable.
+ * Password is URL-encoded (plain `!!` in hPanel is fine — no manual `%21` needed).
+ */
+function resolveDatabaseUrl(): string {
+  const explicit = (process.env.DATABASE_URL ?? "").trim();
+  if (explicit) return explicit;
+
+  const user = (process.env.DB_USER ?? "").trim();
+  const password = process.env.DB_PASSWORD ?? "";
+  const host = (process.env.DB_HOST ?? "").trim();
+  const database = (process.env.DB_NAME ?? "").trim();
+  const port = (process.env.DB_PORT ?? "3306").trim() || "3306";
+
+  if (user && host && database) {
+    const u = encodeURIComponent(user);
+    const p = encodeURIComponent(password);
+    const d = encodeURIComponent(database);
+    return `mysql://${u}:${p}@${host}:${port}/${d}`;
+  }
+
+  return "mysql://evidence:evidence@127.0.0.1:3306/evidence";
+}
+
+const resolvedDatabaseUrl = resolveDatabaseUrl();
+process.env.DATABASE_URL = resolvedDatabaseUrl;
+
 function req(name: string, fallback?: string): string {
   const v = process.env[name] ?? fallback;
   if (v === undefined || v === "") throw new Error(`Missing env: ${name}`);
@@ -14,9 +42,7 @@ function req(name: string, fallback?: string): string {
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PORT: parseInt(process.env.PORT ?? "4000", 10),
-  DATABASE_URL:
-    process.env.DATABASE_URL ||
-    "mysql://evidence:evidence@127.0.0.1:3306/evidence",
+  DATABASE_URL: resolvedDatabaseUrl,
   SESSION_SECRET: req("SESSION_SECRET", "dev-change-me-in-production-min-32-chars!!"),
 
   DISCORD_CLIENT_ID: (process.env.DISCORD_CLIENT_ID ?? "").trim(),
