@@ -233,3 +233,11 @@ model AdminAuditLog {
   ipAddress   String?
   createdAt   DateTime @default(now())
 }
+
+/// express-session backing store (shared across Node workers; replaces MemoryStore)
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String   @db.MediumText
+  expiresAt DateTime
+}

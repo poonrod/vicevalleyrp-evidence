@@ -1,6 +1,6 @@
 # Evidence API
 
-Express + TypeScript + Prisma + MySQL. Handles Discord OAuth (cookie session), evidence CRUD metadata, presigned uploads/downloads via **S3-compatible** client (Cloudflare R2 default), retention merge logic, and a **deletion worker**.
+Express + TypeScript + Prisma + MySQL. Handles Discord OAuth (cookie session stored in the MySQL `Session` table so multiple Node workers share login state), evidence CRUD metadata, presigned uploads/downloads via **S3-compatible** client (Cloudflare R2 default), retention merge logic, and a **deletion worker**.
 
 ## Scripts
 
@@ -13,6 +13,8 @@ Express + TypeScript + Prisma + MySQL. Handles Discord OAuth (cookie session), e
 | `npm run db:migrate` | `prisma migrate dev` |
 | `npm run db:push` | `prisma db push` |
 | `npm run db:seed` | Seed retention defaults |
+
+After pulling, run `npx prisma migrate deploy` (from `api/`) on production so the `Session` table exists.
 
 ## Main routes
 

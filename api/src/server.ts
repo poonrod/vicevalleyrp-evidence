@@ -2,8 +2,10 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
+import { PrismaSessionStore } from "@quixo3/prisma-session-store";
 import rateLimit from "express-rate-limit";
 import { env } from "./config/env";
+import { prisma } from "./lib/prisma";
 import { authRouter } from "./routes/auth";
 import { evidenceRouter } from "./routes/evidence";
 import { incidentsRouter } from "./routes/incidents";
@@ -48,6 +50,12 @@ app.use(
     secret: env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    store: new PrismaSessionStore(prisma, {
+      checkPeriod: 2 * 60 * 1000,
+      dbRecordIdIsSessionId: true,
+      enableConcurrentSetInvocationsForSameSessionID: true,
+      enableConcurrentTouchInvocationsForSameSessionID: true,
+    }),
     cookie: {
       httpOnly: true,
       secure: sessionCookie.secure,
