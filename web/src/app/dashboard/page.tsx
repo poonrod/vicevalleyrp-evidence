@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
@@ -15,7 +15,7 @@ export default function DashboardPage() {
   useEffect(() => {
     api<{ user: { username: string; globalRole: string } }>("/auth/me")
       .then((r) => setUser(r.user))
-      .catch(() => router.push("/login"));
+      .catch((e) => handleApiAuthNavigation(router, e));
     api<{ total: number }>("/evidence?pageSize=1")
       .then((r) => setEvidence({ total: r.total }))
       .catch(() => {});

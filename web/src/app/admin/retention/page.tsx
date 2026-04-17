@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useRouter } from "next/navigation";
@@ -14,7 +14,7 @@ export default function RetentionAdminPage() {
   useEffect(() => {
     api<Record<string, unknown>>("/admin/settings/retention")
       .then(setS)
-      .catch(() => router.push("/login"));
+      .catch((e) => handleApiAuthNavigation(router, e));
   }, [router]);
 
   const num = (k: string) => (

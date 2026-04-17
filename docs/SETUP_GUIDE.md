@@ -141,6 +141,7 @@ If remote MySQL access from home is disabled, use **Hostinger SSH** (if your pla
    |----------|--------|
    | `NODE_ENV` | `production` |
    | `NEXT_PUBLIC_API_URL` | `https://api.yourdomain.com` (no trailing slash) |
+   | `NEXT_PUBLIC_WEB_APP_URL` | `https://evidence.yourdomain.com` (portal origin; required so RSC `index.txt` and host guard resolve correctly) |
 
 6. Assign this deployment to **`evidence.yourdomain.com`** (or your chosen portal hostname).
 

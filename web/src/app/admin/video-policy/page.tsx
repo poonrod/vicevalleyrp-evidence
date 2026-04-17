@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,7 @@ export default function VideoPolicyPage() {
   useEffect(() => {
     api<Record<string, unknown>>("/admin/settings/video-policy")
       .then(setS)
-      .catch(() => router.push("/login"));
+      .catch((e) => handleApiAuthNavigation(router, e));
   }, [router]);
 
   return (

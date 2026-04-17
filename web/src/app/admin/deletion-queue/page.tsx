@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
@@ -16,7 +16,7 @@ export default function DeletionQueuePage() {
   useEffect(() => {
     api<{ items: Row[] }>("/admin/deletion-queue")
       .then((r) => setItems(r.items))
-      .catch(() => router.push("/login"));
+      .catch((e) => handleApiAuthNavigation(router, e));
   }, [router]);
 
   return (

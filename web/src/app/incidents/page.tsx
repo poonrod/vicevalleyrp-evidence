@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useRouter } from "next/navigation";
@@ -15,7 +15,7 @@ export default function IncidentsPage() {
   useEffect(() => {
     api<{ items: Incident[] }>("/incidents")
       .then((r) => setItems(r.items))
-      .catch(() => router.push("/login"));
+      .catch((e) => handleApiAuthNavigation(router, e));
   }, [router]);
 
   return (

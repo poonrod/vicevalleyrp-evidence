@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,7 +23,7 @@ export default function EvidenceDetailClient() {
         setEv(r.evidence);
         setCaseNum((r.evidence.caseNumber as string) ?? "");
       })
-      .catch(() => router.push("/login"));
+      .catch((e) => handleApiAuthNavigation(router, e));
   }, [id, router]);
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
@@ -28,7 +28,7 @@ export default function EvidenceListPage() {
     if (q) params.set("q", q);
     api<{ items: Row[] }>(`/evidence?${params}`)
       .then((r) => setRows(r.items))
-      .catch(() => router.push("/login"));
+      .catch((e) => handleApiAuthNavigation(router, e));
   }, [router, q]);
 
   return (
