@@ -56,7 +56,7 @@ Change default key in `config.lua` → `ToggleKeybindDefault`.
 
 - **Sleeping mode:** disables auto-activation and pre-buffer behavior; manual use may still be allowed (`AllowManualActivationWhileSleeping`).  
 - **Auto taser/firearm:** per-player toggles in `/bcamconfig` unless server **forces** them on.  
-- **First person:** `ForceFirstPersonWhileBodycamActive` — captures player view (not a separate cinematic camera).  
+- **Camera:** Default is **not** forcing first person while the bodycam is on (`ForceFirstPersonWhileBodycamActive = false`). **`UseFirstPersonForSnapshots`** (default true) plus the personal **first-person capture** toggle briefly switches to first person **only for each screenshot** so footage matches a body-worn camera; turn the toggle off in `/bcamconfig` to record whatever view you are in (e.g. third person).  
 - **Pre-event buffer:** periodic snapshots while active; on weapon event, buffer is flushed and labeled — **not** true retroactive video.  
 - **Law enforcement:** `AllowedJobs`, optional ACE `bodycam.use`, optional bodycam **component** match.
 
@@ -66,7 +66,7 @@ Change default key in `config.lua` → `ToggleKeybindDefault`.
 
 ## Screenshot upload note
 
-The client calls `requestScreenshotUpload` on the resource named by **`bodycam_screenshot_resource`** (default **`screenshot-basic`**). Your screenshot resource must perform a **PUT** (or method required by the presigned URL) with **`Content-Type: image/jpeg`** matching the signed request. If uploads fail with **403**, compare headers with the presigned URL policy.
+**citizenfx/screenshot-basic** captures via `requestScreenshot`, but its built-in **`requestScreenshotUpload`** path always sends **POST + multipart FormData**. Our API issues **presigned S3 PutObject (PUT + raw JPEG)** URLs, so bodycam **PUTs from this resource’s NUI** (`html/app.js`) after capture. You still need **screenshot-basic** started for the capture export. If uploads fail with **403** / signature errors, confirm your R2 bucket **CORS** allows **PUT** from NUI origins (`https://cfx-nui-*`).
 
 ## Discord ID routing
 

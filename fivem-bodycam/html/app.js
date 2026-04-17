@@ -25,6 +25,9 @@ window.addEventListener("message", (e) => {
       /* missing file */
     }
   }
+  if (d.type === "bodycam_presigned_put") {
+    void runPresignedPut(d);
+  }
   if (d.type === "config_open") {
     config.classList.remove("hidden");
     document.getElementById("sleeping").checked = !!d.sleeping;
@@ -41,6 +44,44 @@ window.addEventListener("message", (e) => {
 
 function resourceName() {
   return typeof GetParentResourceName === "function" ? GetParentResourceName() : "vicevalley_bodycam";
+}
+
+/** Presigned S3/R2 URLs require PUT + raw body; screenshot-basic only POSTs multipart. */
+async function runPresignedPut(d) {
+  const { correlation, url, contentType, dataUrl } = d;
+  if (!correlation || !url || !dataUrl) {
+    post("bodycam_put_done", { correlation: correlation || "", ok: false, err: "missing correlation/url/dataUrl" });
+    return;
+  }
+  let blob;
+  try {
+    blob = await (await fetch(dataUrl)).blob();
+  } catch (e) {
+    post("bodycam_put_done", { correlation, ok: false, err: String(e) });
+    return;
+  }
+  const ct = contentType || "image/jpeg";
+  try {
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": ct },
+      body: blob,
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      post("bodycam_put_done", {
+        correlation,
+        ok: false,
+        err: t || res.statusText,
+        status: res.status,
+        fileSize: blob.size,
+      });
+      return;
+    }
+    post("bodycam_put_done", { correlation, ok: true, fileSize: blob.size });
+  } catch (e) {
+    post("bodycam_put_done", { correlation, ok: false, err: String(e), fileSize: blob.size });
+  }
 }
 
 function post(name, data) {

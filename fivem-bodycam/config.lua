@@ -75,7 +75,10 @@ Config.AutoDisableIfNoLongerEquipped = true
 Config.ShowEquippedStateWarnings = true
 
 -- Camera
-Config.ForceFirstPersonWhileBodycamActive = true
+-- If true, keeps follow-cam in first person the whole time the bodycam is on (gameplay POV).
+Config.ForceFirstPersonWhileBodycamActive = false
+-- If true (and personal "first person capture" is on), briefly switches to first person only for each screenshot so footage matches a chest-mounted camera; then restores prior view mode.
+Config.UseFirstPersonForSnapshots = true
 Config.RestorePreviousCameraModeOnDisable = true
 
 -- Video tiers (policy enforced server/API; client hints for UX)

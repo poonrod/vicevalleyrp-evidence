@@ -32,6 +32,10 @@ export class S3CompatibleStorage implements StorageProvider {
         secretAccessKey: opts.secretAccessKey,
       },
       forcePathStyle: opts.forcePathStyle ?? !!opts.endpoint,
+      // Newer @aws-sdk/client-s3 defaults add CRC query params to presigned URLs; simple HTTP clients
+      // (e.g. game NUI fetch PUT) do not reproduce the same canonical request. Prefer legacy signing.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
     });
   }
 
