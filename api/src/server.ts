@@ -16,30 +16,38 @@ import { startDeletionWorker } from "./worker/deletionWorker";
 const app = express();
 
 /**
- * Portal and API on different hosts → browser fetch(/auth/me) is cross-site.
- * SameSite=Lax cookies are not sent on that request, so the portal always looks logged out.
- * SameSite=None + Secure fixes credentialed cross-origin session (see WEB_APP_URL vs callback host).
+ * Production API uses HTTPS → portal fetch() to this host needs SameSite=None; Secure=true
+ * or the browser will not attach the session cookie on cross-origin requests.
  */
 function sessionCookieSettings(): { sameSite: "lax" | "none"; secure: boolean } {
-  try {
-    const portalOrigin = new URL(env.WEB_APP_URL).origin;
-    const apiOrigin = new URL(env.DISCORD_CALLBACK_URL).origin;
-    if (portalOrigin !== apiOrigin) {
-      return { sameSite: "none", secure: true };
-    }
-  } catch {
-    /* fall through */
+  if (env.DISCORD_CALLBACK_URL.startsWith("https://")) {
+    return { sameSite: "none", secure: true };
   }
-  return { sameSite: "lax", secure: env.NODE_ENV === "production" };
+  return { sameSite: "lax", secure: false };
 }
 
 const sessionCookie = sessionCookieSettings();
 
-app.set("trust proxy", 1);
+app.set("trust proxy", true);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(
   cors({
-    origin: env.WEB_APP_URL,
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      try {
+        const allowed = new URL(env.WEB_APP_URL).origin;
+        if (origin === allowed) {
+          callback(null, origin);
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      callback(new Error(`CORS blocked origin: ${origin}`));
+    },
     credentials: true,
   })
 );
@@ -65,7 +73,14 @@ app.use(
   })
 );
 
-const limiter = rateLimit({ windowMs: 60_000, max: 200 });
+/** By session when possible so Cloudflare / one edge IP does not merge all users into one bucket. */
+const limiter = rateLimit({
+  windowMs: 60_000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.sessionID ? `sid:${req.sessionID}` : `ip:${req.ip ?? "unknown"}`),
+});
 app.use(limiter);
 
 function escapeHtml(s: string): string {

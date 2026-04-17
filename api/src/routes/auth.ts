@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import type { Request } from "express";
 import { Router } from "express";
 import { env } from "../config/env";
 import {
@@ -9,6 +10,13 @@ import { prisma } from "../lib/prisma";
 import { loadSessionUser, requireAuth } from "../middleware/sessionUser";
 
 export const authRouter = Router();
+
+/** Ensure async session stores (e.g. Prisma) persist before the browser follows the redirect. */
+function saveSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.save((err) => (err ? reject(err) : resolve()));
+  });
+}
 
 function parseDiscordTokenErrorBody(raw: string): string {
   const trimmed = raw.trim().slice(0, 400);
@@ -298,6 +306,21 @@ authRouter.get("/discord/callback", async (req, res) => {
     }
 
     req.session.userId = user.id;
+    try {
+      await saveSession(req);
+    } catch (saveErr) {
+      console.error("[auth] session save failed after Discord login", saveErr);
+      return res
+        .status(503)
+        .set("Cache-Control", "no-store")
+        .type("html")
+        .send(
+          oauthCallbackHtml(
+            "Sign-in could not be completed",
+            "The server could not store your session. Try “Continue with Discord” again in a moment. If this repeats, check API logs for database errors."
+          )
+        );
+    }
     res.redirect(`${env.WEB_APP_URL}/dashboard`);
   } catch (err) {
     console.error("[auth] discord/callback failed after Discord token OK (database/session)", err);
