@@ -82,6 +82,15 @@ RegisterNetEvent('bodycam:client:notify', function(msg)
     Bodycam.Notify(msg)
 end)
 
+RegisterNetEvent('bodycam:client:timeSync', function(unixSeconds)
+    Utils.ApplyServerTimeSync(unixSeconds)
+end)
+
+AddEventHandler('onClientResourceStart', function(resourceName)
+    if resourceName ~= GetCurrentResourceName() then return end
+    TriggerServerEvent('bodycam:server:requestTimeSync')
+end)
+
 CreateThread(function()
     while true do
         if Bodycam.active and Config.AutoDisableIfNoLongerEquipped and not EquipmentClient.IsEquipped() then

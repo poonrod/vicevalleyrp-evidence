@@ -4,6 +4,9 @@ Config = {}
 Config.ApiBaseUrl = GetConvar('bodycam_api_base', 'http://127.0.0.1:4000')
 Config.ApiSecret = GetConvar('bodycam_api_secret', '')
 
+-- Resource folder name for requestScreenshotUpload (default matches citizenfx/screenshot-basic)
+Config.ScreenshotResourceName = GetConvar('bodycam_screenshot_resource', 'screenshot-basic')
+
 -- Toggle / input
 Config.EnableToggleCommand = true
 Config.ToggleCommandName = "bodycam"

@@ -1,8 +1,9 @@
 CaptureClient = {}
 
 RegisterNetEvent('bodycam:client:presignedReady', function(data)
-    if GetResourceState('screenshot-basic') ~= 'started' then
-        Bodycam.Notify('~r~screenshot-basic not started')
+    local shotRes = Config.ScreenshotResourceName or 'screenshot-basic'
+    if GetResourceState(shotRes) ~= 'started' then
+        Bodycam.Notify('~r~' .. shotRes .. ' not started')
         return
     end
 
@@ -11,12 +12,17 @@ RegisterNetEvent('bodycam:client:presignedReady', function(data)
     local heading = GetEntityHeading(ped)
     local street = GetStreetNameFromHashKey(GetStreetNameAtCoord(coords.x, coords.y, coords.z))
 
-    exports['screenshot-basic']:requestScreenshotUpload(data.url, 'file', {
+    exports[shotRes]:requestScreenshotUpload(data.url, 'file', {
         encoding = 'jpg',
         headers = { ['Content-Type'] = 'image/jpeg' },
     }, function(err)
         if err then
-            Bodycam.Notify('~r~Screenshot upload failed')
+            print(('[bodycam] screenshot-basic upload error: %s'):format(tostring(err)))
+            if type(err) == 'string' and #err > 0 then
+                Bodycam.Notify('~r~Upload failed: ' .. err:sub(1, 100))
+            else
+                Bodycam.Notify('~r~Screenshot upload failed')
+            end
             return
         end
         local meta = data.meta or {}

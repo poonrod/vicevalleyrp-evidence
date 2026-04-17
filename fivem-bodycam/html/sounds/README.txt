@@ -1,5 +1,3 @@
 Place Axon-style sound files here (optional):
-- axon_on.ogg
-- axon_off.ogg
-
-Add them to fxmanifest.lua under `files { ... }` as `html/sounds/*.ogg` when present.
+- axon_on.ogg — shipped; must stay in fxmanifest `files`.
+- axon_off.ogg — optional; add the file and add `html/sounds/axon_off.ogg` to `files` for NUI deactivation sound (otherwise HUD fallback).

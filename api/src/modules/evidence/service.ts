@@ -226,7 +226,8 @@ export async function issueUploadUrlForFivem(params: {
   const presigned = await storage.createPresignedUploadUrl({
     key,
     contentType: params.mimeType,
-    contentLength: params.fileSize,
+    // Do not sign Content-Length: JPEG size from screenshot-basic is unknown until
+    // capture; a mismatch makes S3/R2 reject the PUT and the client shows "upload failed".
     expiresSeconds: env.PRESIGNED_URL_EXPIRES_SECONDS,
   });
 

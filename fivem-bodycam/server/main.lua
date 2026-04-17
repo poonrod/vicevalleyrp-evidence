@@ -56,6 +56,8 @@ RegisterNetEvent('bodycam:server:completeUpload', function(payload)
     local discordId = Framework.GetDiscordId(src)
     if not discordId then return end
     payload.officerDiscordId = discordId
+    -- Authoritative wall time (client has no `os` / NTP; avoids trusting client clock).
+    payload.timestampUtc = os.date('!%Y-%m-%dT%H:%M:%SZ')
 
     Api.CompleteEvidence(src, payload, function(data, err)
         if err then
@@ -72,6 +74,10 @@ RegisterNetEvent('bodycam:server:getOrCreateIncident', function()
     local id = activeSessions[src] or newIncidentId()
     activeSessions[src] = id
     TriggerClientEvent('bodycam:client:incidentId', src, id)
+end)
+
+RegisterNetEvent('bodycam:server:requestTimeSync', function()
+    TriggerClientEvent('bodycam:client:timeSync', source, os.time())
 end)
 
 AddEventHandler('playerDropped', function()

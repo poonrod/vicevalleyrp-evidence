@@ -41,6 +41,7 @@ files {
     'html/index.html',
     'html/style.css',
     'html/app.js',
+    'html/sounds/axon_on.ogg',
 }
 
 dependencies {
