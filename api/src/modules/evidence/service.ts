@@ -56,20 +56,24 @@ export async function issueUploadUrlForUser(user: User, body: UploadUrlInput) {
     caseNumber: body.caseNumber,
   });
 
-  const url = await storage.createPresignedUploadUrl({
+  const presigned = await storage.createPresignedUploadUrl({
     key,
     contentType: body.mimeType,
-    contentLength: body.fileSize,
+    // Omit Content-Length from the signature: browsers may omit or adjust length (encoding,
+    // chunked retry); mismatch causes R2/S3 SignatureDoesNotMatch on PUT.
     expiresSeconds: env.PRESIGNED_URL_EXPIRES_SECONDS,
   });
 
   return {
-    upload: url,
+    url: presigned.url,
+    // Historical key — must be the URL string, not the whole presign object (videos/files broke).
+    upload: presigned.url,
     evidenceId,
-    storageKey: key,
-    storageBucket: storage.getBucket(),
+    storageKey: presigned.storageKey,
+    storageBucket: presigned.bucket,
     storageNamespace: namespace,
     storageProvider: storage.kind,
+    expiresInSeconds: presigned.expiresInSeconds,
   };
 }
 

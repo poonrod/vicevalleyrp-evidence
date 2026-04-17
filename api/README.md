@@ -20,6 +20,7 @@ After pulling, run `npx prisma migrate deploy` (from `api/`) on production so th
 
 - **Auth:** `/auth/discord/login`, `/auth/discord/callback`, `/auth/logout`, `/auth/me`  
 - **Evidence:** `/evidence/upload-url`, `/evidence/complete`, `/evidence`, `/evidence/:id`, notes, tags, case number, archive, legal hold, delete, download-url, audit  
+  - `POST /evidence/upload-url` returns **`url`** and **`upload`** (same string) plus `evidenceId`, `storageKey`, etc. Use either field as the **PUT** target for the file bytes.  
 - **Incidents:** `/incidents`  
 - **Admin:** `/admin/users`, retention, video policy, deletion queue, evidence overrides  
 - **Internal FiveM:** `/internal/fivem/evidence/upload-url`, `.../complete`, bodycam settings GET/PATCH  
