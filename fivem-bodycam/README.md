@@ -14,6 +14,10 @@ set bodycam_api_secret "your-secret"
 set bodycam_framework "standalone"
 ```
 
+Put those **`set` lines above `ensure fivem-bodycam`** in `server.cfg` so the resource reads the correct URL/secret when it starts. `bodycam_api_secret` must match **`FIVEM_API_SECRET`** in the evidence API `.env` exactly.
+
+**Standalone + “nothing hits the API”:** With `RestrictToLawEnforcement = true`, job names came only from `AllowedJobs` (`police`, `sheriff`). The standalone framework reports job **`standalone`** for everyone, so uploads were blocked before any HTTP call. The server script now treats **`standalone`** as law enforcement when `bodycam_framework` is `standalone`. For stricter public servers, use **ACE** (`UseAcePermissions`) or set **`RestrictToLawEnforcement = false`** only on private test boxes.
+
 **C7 Framework V3** — set `bodycam_framework` to `c7fw` and align `AllowedJobs` in `config.lua` with C7 department IDs (`GetCharDept` / `char_department`, e.g. `lspd`):
 
 ```

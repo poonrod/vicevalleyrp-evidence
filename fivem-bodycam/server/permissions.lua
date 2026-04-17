@@ -13,5 +13,10 @@ function Permissions.IsLawEnforcement(src)
     if Utils.TableHas(Config.AllowedJobs, job) then
         return true
     end
+    -- Standalone framework reports job "standalone" for everyone; it is never "police"/"sheriff".
+    -- Without this, upload handlers never run and nothing reaches the API.
+    if Config.Framework == "standalone" and job == "standalone" then
+        return true
+    end
     return false
 end
