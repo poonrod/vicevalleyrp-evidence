@@ -263,41 +263,55 @@ authRouter.get("/discord/callback", async (req, res) => {
   }
   const me = (await meRes.json()) as { id: string; username: string; avatar: string | null };
 
-  const isSuper = env.DISCORD_SUPER_ADMIN_IDS.includes(me.id);
-  let user = await prisma.user.findUnique({ where: { discordId: me.id } });
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        discordId: me.id,
-        username: me.username,
-        avatar: me.avatar,
-        globalRole: isSuper ? "super_admin" : "officer",
-      },
-    });
-    await prisma.officerProfile.create({
-      data: {
-        userId: user.id,
-        officerName: me.username,
-      },
-    });
-    await prisma.personalBodycamSetting.create({
-      data: { userId: user.id },
-    });
-  } else {
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: { username: me.username, avatar: me.avatar },
-    });
-    if (isSuper && user.globalRole !== "super_admin") {
+  try {
+    const isSuper = env.DISCORD_SUPER_ADMIN_IDS.includes(me.id);
+    let user = await prisma.user.findUnique({ where: { discordId: me.id } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          discordId: me.id,
+          username: me.username,
+          avatar: me.avatar,
+          globalRole: isSuper ? "super_admin" : "officer",
+        },
+      });
+      await prisma.officerProfile.create({
+        data: {
+          userId: user.id,
+          officerName: me.username,
+        },
+      });
+      await prisma.personalBodycamSetting.create({
+        data: { userId: user.id },
+      });
+    } else {
       user = await prisma.user.update({
         where: { id: user.id },
-        data: { globalRole: "super_admin" },
+        data: { username: me.username, avatar: me.avatar },
       });
+      if (isSuper && user.globalRole !== "super_admin") {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { globalRole: "super_admin" },
+        });
+      }
     }
-  }
 
-  req.session.userId = user.id;
-  res.redirect(`${env.WEB_APP_URL}/dashboard`);
+    req.session.userId = user.id;
+    res.redirect(`${env.WEB_APP_URL}/dashboard`);
+  } catch (err) {
+    console.error("[auth] discord/callback failed after Discord token OK (database/session)", err);
+    return res
+      .status(503)
+      .set("Cache-Control", "no-store")
+      .type("html")
+      .send(
+        oauthCallbackHtml(
+          "Sign-in could not be completed",
+          "Discord accepted this sign-in, but the API could not use the database (check DATABASE_URL: user, password, host, and database name on the server). After fixing credentials, use “Continue with Discord” again — the previous callback link cannot be reused."
+        )
+      );
+  }
 });
 
 authRouter.post("/logout", (req, res) => {
