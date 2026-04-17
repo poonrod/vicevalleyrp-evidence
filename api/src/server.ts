@@ -13,6 +13,26 @@ import { startDeletionWorker } from "./worker/deletionWorker";
 
 const app = express();
 
+/**
+ * Portal and API on different hosts → browser fetch(/auth/me) is cross-site.
+ * SameSite=Lax cookies are not sent on that request, so the portal always looks logged out.
+ * SameSite=None + Secure fixes credentialed cross-origin session (see WEB_APP_URL vs callback host).
+ */
+function sessionCookieSettings(): { sameSite: "lax" | "none"; secure: boolean } {
+  try {
+    const portalOrigin = new URL(env.WEB_APP_URL).origin;
+    const apiOrigin = new URL(env.DISCORD_CALLBACK_URL).origin;
+    if (portalOrigin !== apiOrigin) {
+      return { sameSite: "none", secure: true };
+    }
+  } catch {
+    /* fall through */
+  }
+  return { sameSite: "lax", secure: env.NODE_ENV === "production" };
+}
+
+const sessionCookie = sessionCookieSettings();
+
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(
@@ -30,8 +50,8 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: sessionCookie.secure,
+      sameSite: sessionCookie.sameSite,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })
