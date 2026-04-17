@@ -16,7 +16,7 @@ Open `http://localhost:3000`. Use **Login** → Discord OAuth on the API (sessio
 ## Production
 
 - Set `NEXT_PUBLIC_API_URL` to your public API (e.g. `https://api.yourdomain.com`).
-- Set `NEXT_PUBLIC_WEB_APP_URL` to the portal origin where users open the site (e.g. `https://evidence.yourdomain.com`). If the static export is ever opened on the **API** hostname, the app redirects here so Next’s `/evidence/index.txt` RSC fetches hit the static host, not Express (which would 404).  
+- Set `NEXT_PUBLIC_WEB_APP_URL` to the portal origin where users open the site (e.g. `https://evidence.yourdomain.com`). The root layout emits a `<base href="…">` for that origin so relative RSC requests (e.g. `/evidence/index.txt`) resolve on **evidence**, not the API host. A `beforeInteractive` script still redirects if someone opens the bundle on the API domain.  
 - Deploy behind HTTPS; align cookie `Secure` with API `NODE_ENV=production`.  
 - Consider putting **Next** and **API** on sibling subdomains with correct CORS.
 
