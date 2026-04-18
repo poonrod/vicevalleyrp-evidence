@@ -4,12 +4,145 @@ const line2 = document.getElementById("line2");
 const line3 = document.getElementById("line3");
 const player = document.getElementById("player");
 const config = document.getElementById("config");
+const clipAudioBanner = document.getElementById("clipAudioBanner");
+
+/** Cached getDisplayMedia stream (audio) — primed from banner click while bodycam on. */
+let cachedDisplayAudioStream = null;
+let clipAudioBannerDismissed = false;
+
+function normalizeClipAudioMode(m) {
+  if (m === "display" || m === "display_plus_mic") return m;
+  return "mic";
+}
+
+function hideClipAudioBanner() {
+  clipAudioBanner?.classList.add("hidden");
+}
+
+function showClipAudioBannerIfNeeded() {
+  if (!clipAudioBanner) return;
+  if (clipAudioBannerDismissed) return;
+  if (cachedDisplayAudioStream) {
+    const ok = cachedDisplayAudioStream.getAudioTracks().some((t) => t.readyState === "live");
+    if (ok) return;
+    stopCachedDisplayAudio();
+  }
+  clipAudioBanner.classList.remove("hidden");
+}
+
+function stopCachedDisplayAudio() {
+  if (!cachedDisplayAudioStream) return;
+  try {
+    for (const t of cachedDisplayAudioStream.getTracks()) t.stop();
+  } catch {
+    /* ignore */
+  }
+  cachedDisplayAudioStream = null;
+}
+
+async function acquireDisplayAudioStreamInternal() {
+  const gm = navigator.mediaDevices?.getDisplayMedia;
+  if (!gm) throw new Error("getDisplayMedia_unavailable");
+  const base = {
+    video: { width: { ideal: 480, max: 720 }, height: { ideal: 270, max: 480 }, frameRate: { max: 8 } },
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    },
+  };
+  let stream;
+  try {
+    stream = await gm.call(navigator.mediaDevices, { ...base, systemAudio: "include" });
+  } catch {
+    stream = await gm.call(navigator.mediaDevices, base);
+  }
+  for (const vt of stream.getVideoTracks()) {
+    try {
+      vt.stop();
+    } catch {
+      /* ignore */
+    }
+  }
+  const aud = stream.getAudioTracks().filter((t) => t.readyState === "live");
+  if (!aud.length) {
+    for (const t of stream.getTracks()) t.stop();
+    throw new Error("no_system_audio_track");
+  }
+  return stream;
+}
+
+async function primeDisplayAudioFromUserGesture() {
+  try {
+    stopCachedDisplayAudio();
+    cachedDisplayAudioStream = await acquireDisplayAudioStreamInternal();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, err: String(e?.message || e) };
+  }
+}
+
+async function obtainDisplayStreamForClip() {
+  if (cachedDisplayAudioStream) {
+    const live = cachedDisplayAudioStream.getAudioTracks().filter((t) => t.readyState === "live");
+    if (live.length) return { stream: cachedDisplayAudioStream, ephemeral: false };
+    stopCachedDisplayAudio();
+  }
+  try {
+    const stream = await acquireDisplayAudioStreamInternal();
+    return { stream, ephemeral: true };
+  } catch (e) {
+    return { stream: null, ephemeral: false, err: String(e?.message || e) };
+  }
+}
+
+async function mergeDisplayAndMic(displayStream, micStream) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  const ctx = new Ctx();
+  await ctx.resume();
+  const dest = ctx.createMediaStreamDestination();
+  try {
+    const dSrc = ctx.createMediaStreamSource(displayStream);
+    const gD = ctx.createGain();
+    gD.gain.value = 0.88;
+    dSrc.connect(gD).connect(dest);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const mSrc = ctx.createMediaStreamSource(micStream);
+    const gM = ctx.createGain();
+    gM.gain.value = 1.05;
+    mSrc.connect(gM).connect(dest);
+  } catch {
+    /* ignore */
+  }
+  const tracks = dest.stream.getAudioTracks();
+  if (!tracks.length) {
+    try {
+      await ctx.close();
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+  return { destStream: dest.stream, context: ctx };
+}
 
 window.addEventListener("message", (e) => {
   const d = e.data;
   if (d.type === "bodycam_state") {
     if (d.active) hud.classList.remove("hidden");
     else hud.classList.add("hidden");
+    if (!d.active) {
+      clipAudioBannerDismissed = false;
+      stopCachedDisplayAudio();
+      hideClipAudioBanner();
+    } else if (d.clipAudioWantDisplay) {
+      clipAudioBannerDismissed = false;
+      showClipAudioBannerIfNeeded();
+    }
   }
   if (d.type === "hud_tick") {
     line1.textContent = `${d.officer} • ${d.dept} • Badge ${d.badge}`;
@@ -190,11 +323,29 @@ function pickRecorderMime(withAudio) {
 }
 
 function stopClipMic(s) {
-  if (!s || !s.micStream) return;
-  try {
-    for (const t of s.micStream.getTracks()) t.stop();
-  } catch {
-    /* ignore */
+  if (!s) return;
+  if (s.mergeAudioContext) {
+    try {
+      void s.mergeAudioContext.close();
+    } catch {
+      /* ignore */
+    }
+    s.mergeAudioContext = null;
+  }
+  if (s.ephemeralDisplayStream) {
+    try {
+      for (const t of s.ephemeralDisplayStream.getTracks()) t.stop();
+    } catch {
+      /* ignore */
+    }
+    s.ephemeralDisplayStream = null;
+  }
+  if (s.micStream) {
+    try {
+      for (const t of s.micStream.getTracks()) t.stop();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -228,7 +379,12 @@ async function startClipSession(d) {
   }
 
   const fps = Math.max(1, Math.min(60, Number(d.fps) || 30));
-  const wantMic = !!d.includeMic && typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia;
+  const audioMode = normalizeClipAudioMode(d.clipAudioCaptureMode);
+  const wantMic =
+    !!d.includeMic &&
+    typeof navigator !== "undefined" &&
+    navigator.mediaDevices?.getUserMedia &&
+    (audioMode === "mic" || audioMode === "display_plus_mic");
 
   const logoPromise = loadClipWatermarkLogo();
 
@@ -245,10 +401,61 @@ async function startClipSession(d) {
     }
   }
 
-  const hasAudio = !!(micStream && micStream.getAudioTracks().length);
+  let displayStream = null;
+  let displayEphemeral = false;
+  let mergeAudioContext = null;
+  let audioTracksForRecorder = [];
+
+  if (audioMode === "display" || audioMode === "display_plus_mic") {
+    const got = await obtainDisplayStreamForClip();
+    displayStream = got.stream;
+    displayEphemeral = !!got.ephemeral;
+    if (!displayStream || !displayStream.getAudioTracks().length) {
+      post("bodycam_clip_audio_fallback", {
+        correlation: d.correlation,
+        mode: audioMode,
+        err: got.err || "display_audio_unavailable",
+      });
+      if (audioMode === "display") {
+        stopClipMic({ micStream });
+        post("bodycam_clip_put_done", {
+          correlation: d.correlation,
+          ok: false,
+          err: "display_audio_required",
+        });
+        return;
+      }
+      displayStream = null;
+      displayEphemeral = false;
+    }
+  }
+
+  if (audioMode === "display" && displayStream) {
+    audioTracksForRecorder = [...displayStream.getAudioTracks()];
+  } else if (audioMode === "display_plus_mic" && displayStream && micStream) {
+    const merged = await mergeDisplayAndMic(displayStream, micStream);
+    if (merged?.destStream && merged.context) {
+      mergeAudioContext = merged.context;
+      audioTracksForRecorder = [...merged.destStream.getAudioTracks()];
+    } else if (displayStream) {
+      audioTracksForRecorder = [...displayStream.getAudioTracks()];
+    } else if (micStream) {
+      audioTracksForRecorder = [...micStream.getAudioTracks()];
+    }
+  } else if (audioMode === "display_plus_mic" && displayStream && !micStream) {
+    audioTracksForRecorder = [...displayStream.getAudioTracks()];
+  } else if (micStream) {
+    audioTracksForRecorder = [...micStream.getAudioTracks()];
+  }
+
+  const hasAudio = audioTracksForRecorder.length > 0;
   const mime = pickRecorderMime(hasAudio);
   if (!mime) {
-    stopClipMic({ micStream });
+    stopClipMic({
+      micStream,
+      mergeAudioContext,
+      ephemeralDisplayStream: displayEphemeral ? displayStream : null,
+    });
     post("bodycam_clip_put_done", {
       correlation: d.correlation,
       ok: false,
@@ -268,8 +475,7 @@ async function startClipSession(d) {
       : "AXON BODY WF x0000000";
 
   const videoOnly = canvas.captureStream(fps);
-  const tracks = [...videoOnly.getVideoTracks()];
-  if (hasAudio) tracks.push(...micStream.getAudioTracks());
+  const tracks = [...videoOnly.getVideoTracks(), ...audioTracksForRecorder];
   const merged = new MediaStream(tracks);
 
   const kbps = Math.max(400, Math.min(12000, Number(d.clipVideoBitrateKbps) || 1400));
@@ -280,13 +486,19 @@ async function startClipSession(d) {
     mimeType: mime,
     videoBitsPerSecond: scaledKbps * 1000,
   };
-  if (hasAudio) recOpts.audioBitsPerSecond = 96_000;
+  if (hasAudio) {
+    recOpts.audioBitsPerSecond = displayStream ? 128_000 : 96_000;
+  }
 
   let recorder;
   try {
     recorder = new MediaRecorder(merged, recOpts);
   } catch (err) {
-    stopClipMic({ micStream });
+    stopClipMic({
+      micStream,
+      mergeAudioContext,
+      ephemeralDisplayStream: displayEphemeral ? displayStream : null,
+    });
     post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: String(err) });
     return;
   }
@@ -305,6 +517,8 @@ async function startClipSession(d) {
     url: d.url,
     mime,
     micStream,
+    mergeAudioContext,
+    ephemeralDisplayStream: displayEphemeral ? displayStream : null,
     startMs: Date.now(),
     wmTime,
     wmLine2,
@@ -318,7 +532,11 @@ async function startClipSession(d) {
     recorder.start(100);
   } catch (err) {
     clipSession = null;
-    stopClipMic({ micStream });
+    stopClipMic({
+      micStream,
+      mergeAudioContext,
+      ephemeralDisplayStream: displayEphemeral ? displayStream : null,
+    });
     post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: String(err) });
   }
 }
@@ -499,4 +717,17 @@ document.getElementById("save").addEventListener("click", () => {
     lowStorage: document.getElementById("lowStorage").checked,
   });
   config.classList.add("hidden");
+});
+
+document.getElementById("clipAudioGrantBtn")?.addEventListener("click", () => {
+  void (async () => {
+    const r = await primeDisplayAudioFromUserGesture();
+    post("bodycam_display_audio_result", r);
+    if (r.ok) hideClipAudioBanner();
+  })();
+});
+
+document.getElementById("clipAudioDismissBtn")?.addEventListener("click", () => {
+  clipAudioBannerDismissed = true;
+  hideClipAudioBanner();
 });

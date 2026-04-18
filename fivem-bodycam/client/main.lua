@@ -39,11 +39,17 @@ function Bodycam.SetActive(on, sourceKind)
         Bodycam.autoLockUntil = GetGameTimer() + (Config.AutoTriggerMinimumActiveSeconds * 1000)
     end
 
+    local cap = tostring(Config.ClipAudioCaptureMode or 'mic'):lower()
+    if cap ~= 'display' and cap ~= 'display_plus_mic' then
+        cap = 'mic'
+    end
     SendNUIMessage({
         type = 'bodycam_state',
         active = on,
         sleeping = Bodycam.sleeping,
         auto = sourceKind and sourceKind:find('auto') ~= nil,
+        clipAudioCaptureMode = cap,
+        clipAudioWantDisplay = on and Config.EnableClipMode and (cap == 'display' or cap == 'display_plus_mic'),
     })
 
     if on and Config.EnableClipMode and Config.EnableClipRecordingMicrophone ~= false then

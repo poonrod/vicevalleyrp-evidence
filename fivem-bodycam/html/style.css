@@ -112,3 +112,48 @@ button#close {
   color: #cbd5e1;
   margin: 8px 0;
 }
+
+.clip-audio-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 8vh;
+  transform: translateX(-50%);
+  z-index: 9000;
+  max-width: min(520px, 94vw);
+  padding: 14px 16px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 12px;
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+}
+.clip-audio-banner.hidden {
+  display: none;
+}
+.clip-audio-inner strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #fde68a;
+}
+.clip-audio-inner p {
+  margin: 0 0 10px;
+  color: #e2e8f0;
+  font-size: 12px;
+}
+.clip-audio-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.clip-audio-actions button {
+  flex: 1 1 auto;
+  min-width: 120px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.clip-audio-actions button.muted {
+  background: #334155;
+  color: #e2e8f0;
+}

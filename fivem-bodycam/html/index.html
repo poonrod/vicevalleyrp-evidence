@@ -32,6 +32,19 @@
       </div>
     </div>
     <audio id="player" preload="auto" playsinline></audio>
+    <div id="clipAudioBanner" class="clip-audio-banner hidden" role="dialog" aria-label="Clip audio setup">
+      <div class="clip-audio-inner">
+        <strong>Game + voice audio on clips</strong>
+        <p>
+          Click <strong>Allow system audio</strong>, pick the <strong>monitor</strong> where FiveM runs, and enable
+          <strong>Share audio</strong> (Windows / Chromium). Do this once per session while bodycam is on.
+        </p>
+        <div class="clip-audio-actions">
+          <button type="button" id="clipAudioGrantBtn">Allow system audio</button>
+          <button type="button" id="clipAudioDismissBtn" class="muted">Dismiss</button>
+        </div>
+      </div>
+    </div>
     <script src="app.js"></script>
   </body>
 </html>

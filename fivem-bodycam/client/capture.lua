@@ -245,6 +245,11 @@ local function startWebmClipFromPresign(data)
     if clipKbps < 400 then clipKbps = 400 end
     if clipKbps > 12000 then clipKbps = 12000 end
 
+    local capMode = tostring(Config.ClipAudioCaptureMode or 'mic'):lower()
+    if capMode ~= 'display' and capMode ~= 'display_plus_mic' and capMode ~= 'mic' then
+        capMode = 'mic'
+    end
+
     SendNUIMessage({
         type = 'bodycam_clip_begin',
         correlation = cid,
@@ -259,6 +264,7 @@ local function startWebmClipFromPresign(data)
         clipMaxWidth = clipW,
         clipMaxHeight = clipH,
         clipMicProcessing = (Config.ClipMicrophoneProcessing == 'ambient') and 'ambient' or 'voice',
+        clipAudioCaptureMode = capMode,
     })
 
     Citizen.SetTimeout(80, function()
@@ -380,6 +386,25 @@ RegisterNUICallback('bodycam_mic_warmup_result', function(body, cb)
     end
     print('^3[bodycam] Microphone not available: ' .. tostring(body.err or 'denied') .. '^7')
     print('^3[bodycam] Open the bodycam NUI (F1 pause menu / settings) and allow the browser microphone prompt if you want audio on clips.^7')
+end)
+
+RegisterNUICallback('bodycam_display_audio_result', function(body, cb)
+    cb({})
+    if type(body) ~= 'table' then return end
+    if body.ok == true then
+        Bodycam.Notify('~g~Bodycam: system/monitor audio capture ready for clips')
+        return
+    end
+    Bodycam.Notify('~o~Bodycam: system audio not granted — ' .. tostring(body.err or 'denied'))
+end)
+
+RegisterNUICallback('bodycam_clip_audio_fallback', function(body, cb)
+    cb({})
+    if type(body) ~= 'table' then return end
+    if GetConvar('bodycam_debug', '0') == '1' then
+        print(('[bodycam] clip audio fallback: %s'):format(json.encode(body)))
+    end
+    Bodycam.Notify('~o~Clip: no system loopback — saving microphone audio only')
 end)
 
 RegisterCommand('bcamsnap', function()

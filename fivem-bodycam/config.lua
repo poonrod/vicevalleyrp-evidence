@@ -102,12 +102,16 @@ Config.ClipFirstPersonRequiresSnapshotToggle = false
 -- JPEG quality for clip frames (before VP9). Higher = sharper source frames, larger data URLs.
 Config.ClipJpegQuality = 0.88
 -- Mix the player's real microphone (browser getUserMedia) into the WebM when supported.
--- This is the physical mic — not a tap of Mumble/VOIP or GTA world SFX (see README).
 Config.EnableClipRecordingMicrophone = true
+-- Clip audio source (see README "Game + voice chat audio"):
+--   mic = microphone only (getUserMedia).
+--   display = Windows monitor / "Entire screen" loopback via browser screen share (game + default output, incl. typical Mumble/pma-voice to headphones).
+--   display_plus_mic = loopback + microphone mixed (recommended for officer radio + world).
+Config.ClipAudioCaptureMode = "display_plus_mic"
 -- "voice" = echo/noise suppression (Discord-like). "ambient" = lighter processing so room/speaker
 -- bleed is louder (still mic-only). True game audio needs a loopback device (VB-Audio / Stereo Mix) set as the default mic in Windows, or a custom native bridge.
 Config.ClipMicrophoneProcessing = "voice"
--- Reserved: CEF/NUI cannot read GTA engine audio or Mumble output; keep false unless you add a custom native bridge.
+-- Legacy flag — real game path uses ClipAudioCaptureMode display* + getDisplayMedia (README).
 Config.EnableClipRecordingGameAudio = false
 Config.EnableLongVideoMode = false
 Config.ShortClipMaxSeconds = 30
