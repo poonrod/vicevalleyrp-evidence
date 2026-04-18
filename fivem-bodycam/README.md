@@ -50,7 +50,7 @@ After the officer turns **bodycam off**, the client captures a burst of **JPEG f
   - **`mic`** — microphone only (`getUserMedia`).
   - **`display`** — loopback only (no officer mic).
   - **`display_plus_mic`** (default) — **loopback + microphone** mixed in NUI (Web Audio) so your radio / local talk is included with world audio.
-  While bodycam is **on**, a small NUI banner offers **Allow system audio** — officers should click it once per session (requires a real click for browser security). If they skip it, the first clip may prompt again or fall back to mic-only (`display_plus_mic`) or fail (`display` only).
+  **Setup (F8 only):** With display modes enabled, run **`bodycamclipaudio`** in the **F8** client console (override via `Config.BodycamClipAudioConsoleCommand`). That opens NUI with mouse focus so the player can click **Allow monitor audio** and pick the monitor with **Share audio** — Chromium requires that gesture. A successful grant is **remembered in the FiveM CEF profile** (localStorage). **`bodycamclipaudio_clear`** (same prefix + `_clear`) wipes that preference and stops any cached capture. If a clip still cannot get loopback audio (browser/OS policy), run **`bodycamclipaudio`** again. If they skip setup, the first clip may fall back to mic-only (`display_plus_mic`) or fail (`display` only).
 - **Bitrate / resolution:** WebM encoding uses **`ShortClipBitrateKbps`** and downscales frames to **`ShortClipResolution`** before `MediaRecorder` so the encoder keeps up; if clips still hitch, lower **`ClipRecordFps`** or max seconds.
 
 **Periodic JPEG snapshots are disabled while clip mode is on.** Set `EnableClipMode = false` if you only want interval photos.
@@ -75,6 +75,8 @@ set bodycam_framework "c7fw"
 | `/bodycam` | Toggle (if enabled in config) |
 | `/bcamsnap` | Manual screenshot while bodycam **on** |
 | `/bcamconfig` | NUI settings (sleeping mode, auto taser/firearm, etc.) |
+| F8: `bodycamclipaudio` | Clip monitor / system audio setup (only when `ClipAudioCaptureMode` is `display` or `display_plus_mic`; command from `Config.BodycamClipAudioConsoleCommand`) |
+| F8: `bodycamclipaudio_clear` | Clear saved clip monitor-audio preference (`<command>_clear`) |
 
 Change default key in `config.lua` → `ToggleKeybindDefault`.
 
