@@ -589,8 +589,8 @@ RegisterCommand('bodycam_mic_devices', function()
     SendNUIMessage({ type = 'bodycam_enumerate_audio_inputs' })
 end, false)
 
---- Mic + desktop loopback (NUI). Optional arg: duration seconds (5 .. Config.CombinedAudioMaxSeconds).
-RegisterCommand('bodycamrecord', function(_, args)
+--- Mic + desktop loopback (NUI). Called from keybind (`keybinds.lua`); duration from config / arg.
+function CaptureClient.TryStartCombinedAudioRecord(requestedSeconds)
     if not canStartCombinedAudioRecord() then
         Bodycam.Notify('~r~Combined audio: job or equipment blocked')
         return
@@ -605,8 +605,9 @@ RegisterCommand('bodycamrecord', function(_, args)
     end
 
     local maxSec = tonumber(Config.CombinedAudioMaxSeconds) or 90
-    local sec = tonumber(args[1]) or 30
-    if not sec or sec < 1 then sec = 30 end
+    local defSec = tonumber(Config.CombinedAudioRecordKeybindSeconds) or 30
+    local sec = tonumber(requestedSeconds) or defSec
+    if not sec or sec < 1 then sec = defSec end
     sec = math.floor(math.max(5, math.min(sec, maxSec)))
     local estBytes = math.floor(math.min(50 * 1024 * 1024, math.max(800000, sec * 520000)))
 
@@ -619,7 +620,7 @@ RegisterCommand('bodycamrecord', function(_, args)
         videoTier = 'short',
         combinedAudioSeconds = sec,
     })
-end, false)
+end
 
 RegisterCommand('bcamsnap', function()
     if not Bodycam.active then

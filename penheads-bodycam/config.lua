@@ -15,6 +15,14 @@ Config.ToggleKeybindCommand = "+togglebodycam"
 Config.ToggleKeybindDefault = "F10"
 Config.ToggleKeybindDescription = "Toggle Body Camera"
 
+-- Combined mic + desktop audio WebM (NUI). Same pattern as toggle: bind in GTA Settings → Key Bindings → FiveM.
+Config.EnableCombinedAudioRecordKeybind = true
+Config.CombinedAudioRecordKeybindCommand = "+bodycamrecord"
+Config.CombinedAudioRecordKeybindDefault = "F9"
+Config.CombinedAudioRecordKeybindDescription = "Bodycam combined audio record (mic + desktop)"
+-- Recording length when using the keybind (seconds; clamped by CombinedAudioMaxSeconds).
+Config.CombinedAudioRecordKeybindSeconds = 30
+
 Config.EnableBodycamConfigMenu = true
 Config.BodycamConfigCommand = "bcamconfig"
 
@@ -130,7 +138,7 @@ end
 -- Legacy flag — real game path uses ClipAudioCaptureMode display* + getDisplayMedia (README).
 Config.EnableClipRecordingGameAudio = false
 Config.EnableLongVideoMode = false
--- `/bodycamrecord` — max seconds (client clamps). Audio-only WebM estimate uses this for presign size.
+-- Max seconds for combined-audio capture (keybind duration is clamped to this). Presign size estimate uses duration.
 Config.CombinedAudioMaxSeconds = 90
 Config.ShortClipMaxSeconds = 30
 Config.MediumClipMaxSeconds = 300

@@ -81,7 +81,7 @@ set bodycam_framework "c7fw"
 | `/bodycam` | Toggle (if enabled in config) |
 | `/bcamsnap` | Manual screenshot while bodycam **on** |
 | `/bcamconfig` | NUI settings (sleeping mode, auto taser/firearm, etc.) |
-| `/bodycamrecord` | **Mic + desktop/game audio** WebM (NUI `getUserMedia` + `getDisplayMedia`); optional seconds `/bodycamrecord 45` (clamped by `Config.CombinedAudioMaxSeconds`). Click **Start** in the panel, then pick monitor + **Share audio**. Same presign + PUT + complete flow as clips. |
+| Keybind (default **F9**) | **Combined mic + desktop/game audio** WebM — same pattern as bodycam toggle: **Settings → Key Bindings → FiveM** to change. Config: `CombinedAudioRecordKeybindCommand`, `CombinedAudioRecordKeybindDefault`, `CombinedAudioRecordKeybindSeconds`, `EnableCombinedAudioRecordKeybind`. Press key → click **Start** in the panel → monitor + **Share audio**. |
 | F8: `bodycamclipaudio` | Clip monitor / system audio setup (only when `ClipAudioCaptureMode` is `display` or `display_plus_mic`; command from `Config.BodycamClipAudioConsoleCommand`) |
 | F8: `bodycamclipaudio_clear` | Clear saved clip monitor-audio preference (`<command>_clear`) |
 | F8: `bodycam_mic_devices` | Print audio input **`deviceId`** lines for **`ClipMicrophoneDeviceId`** / **`bodycam_clip_mic_device_id`** (run after bodycam was on once so labels can populate) |

@@ -146,7 +146,7 @@ async function mergeDisplayAndMic(displayStream, micStream) {
   return { destStream: dest.stream, context: ctx };
 }
 
-/** `/bodycamrecord` — pending until officer clicks Start (Chromium user-gesture for getDisplayMedia). */
+/** Combined audio record (keybind) — pending until officer clicks Start (Chromium user-gesture for getDisplayMedia). */
 let combinedAudioPendingPayload = null;
 let combinedAudioRunning = false;
 const combinedAudioRecordGate = document.getElementById("combinedAudioRecordGate");
