@@ -79,6 +79,22 @@ function Api.CompleteEvidence(src, payload, cb)
 end
 
 --- GET /internal/fivem/ping — confirms base URL and X-FiveM-Secret (resource startup log).
+function Api.EnsureIncident(incidentId, cb)
+    if Config.ApiSecret == '' then
+        cb(false, 'bodycam_api_secret not set')
+        return
+    end
+    if not incidentId or incidentId == '' then
+        cb(false, 'missing incidentId')
+        return
+    end
+    postWithRetry('/internal/fivem/incidents/ensure', {
+        incidentId = incidentId,
+    }, function(data, err)
+        cb(data ~= nil, err)
+    end)
+end
+
 function Api.PingEvidenceTerminal(cb)
     if Config.ApiSecret == '' then
         cb(false, 'bodycam_api_secret not set')

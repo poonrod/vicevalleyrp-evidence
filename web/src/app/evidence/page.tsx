@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api, ApiHttpError, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
@@ -20,12 +21,18 @@ type Row = {
   scheduledDeletionAt: string | null;
 };
 
-export default function EvidenceListPage() {
+function EvidenceListInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [rows, setRows] = useState<Row[]>([]);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [role, setRole] = useState<GlobalRole | null>(null);
+
+  useEffect(() => {
+    const v = searchParams.get("q");
+    if (v != null && v !== "") setQ(v);
+  }, [searchParams]);
 
   useEffect(() => {
     api<{ user: { globalRole: string } }>("/auth/me")
@@ -138,5 +145,13 @@ export default function EvidenceListPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function EvidenceListPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-zinc-500">Loading…</div>}>
+      <EvidenceListInner />
+    </Suspense>
   );
 }

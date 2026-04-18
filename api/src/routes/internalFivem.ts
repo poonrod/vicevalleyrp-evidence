@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import { fivemUploadUrlSchema, fivemCompleteSchema } from "@vicevalley/shared";
 import { requireFivemSecret } from "../middleware/internal";
 import { issueUploadUrlForFivem, completeEvidenceForFivem } from "../modules/evidence/service";
@@ -31,6 +32,48 @@ internalFivemRouter.use(requireFivemSecret);
 /** Used by the FiveM resource on start to confirm API URL + secret. */
 internalFivemRouter.get("/ping", (_req, res) => {
   res.json({ ok: true });
+});
+
+/** Register bodycam session id in DB so evidence `incidentId` resolves to `incidentBusinessId`. Idempotent. */
+internalFivemRouter.post("/incidents/ensure", async (req, res) => {
+  const body = z
+    .object({
+      incidentId: z.string().min(1).max(128),
+      title: z.string().max(256).optional(),
+      caseNumber: z.string().max(64).optional(),
+    })
+    .parse(req.body);
+
+  const title =
+    body.title?.trim() ||
+    `Bodycam session ${body.incidentId}`;
+  const caseNumber = body.caseNumber?.trim() || null;
+
+  const hit = await prisma.incident.findUnique({ where: { incidentId: body.incidentId } });
+  if (hit) {
+    res.json({ incident: hit });
+    return;
+  }
+  try {
+    const created = await prisma.incident.create({
+      data: {
+        incidentId: body.incidentId,
+        title,
+        caseNumber,
+        createdByUserId: null,
+      },
+    });
+    res.json({ incident: created });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const row = await prisma.incident.findUnique({ where: { incidentId: body.incidentId } });
+      if (row) {
+        res.json({ incident: row });
+        return;
+      }
+    }
+    throw e;
+  }
 });
 
 internalFivemRouter.post("/evidence/upload-url", async (req, res) => {

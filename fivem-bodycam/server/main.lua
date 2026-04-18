@@ -82,7 +82,14 @@ RegisterNetEvent('bodycam:server:getOrCreateIncident', function()
     if not Permissions.IsLawEnforcement(src) then return end
     local id = activeSessions[src] or newIncidentId()
     activeSessions[src] = id
-    TriggerClientEvent('bodycam:client:incidentId', src, id)
+    Api.EnsureIncident(id, function(ok, err)
+        if not ok then
+            if GetConvar('bodycam_debug', '0') == '1' then
+                print(('[bodycam] incidents/ensure failed id=%s err=%s'):format(tostring(id), tostring(err)))
+            end
+        end
+        TriggerClientEvent('bodycam:client:incidentId', src, id)
+    end)
 end)
 
 RegisterNetEvent('bodycam:server:requestTimeSync', function()

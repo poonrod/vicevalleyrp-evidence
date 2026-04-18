@@ -49,6 +49,8 @@ After the officer turns **bodycam off**, the client captures a burst of **JPEG f
 
 **Periodic JPEG snapshots are disabled while clip mode is on.** Set `EnableClipMode = false` if you only want interval photos.
 
+**Incidents:** When an officer turns bodycam **on**, the server calls **`POST /internal/fivem/incidents/ensure`** with the session id (`BCAM-…`) so a matching row exists in the evidence API database. Uploads then attach **`incidentBusinessId`** correctly. If the API is down, the HUD id still appears but evidence may not link until the next successful ensure.
+
 R2/S3 **CORS** must allow **PUT** with `Content-Type: video/webm` from `https://cfx-nui-*` origins. If the clip step fails, check F8 and server `bodycam_debug` lines.
 
 **C7 Framework V3** — set `bodycam_framework` to `c7fw` and align `AllowedJobs` in `config.lua` with C7 department IDs (`GetCharDept` / `char_department`, e.g. `lspd`):

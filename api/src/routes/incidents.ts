@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { loadSessionUser, requireAuth, requireMinRole } from "../middleware/sessionUser";
@@ -7,8 +8,20 @@ export const incidentsRouter = Router();
 incidentsRouter.use(loadSessionUser);
 
 incidentsRouter.get("/", requireAuth, async (req, res) => {
-  const items = await prisma.incident.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
-  res.json({ items });
+  const rows = await prisma.incident.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { _count: { select: { evidence: true } } },
+  });
+  res.json({
+    items: rows.map((i) => ({
+      incidentId: i.incidentId,
+      title: i.title,
+      caseNumber: i.caseNumber,
+      createdAt: i.createdAt.toISOString(),
+      evidenceCount: i._count.evidence,
+    })),
+  });
 });
 
 incidentsRouter.post("/", requireAuth, async (req, res) => {
@@ -21,16 +34,30 @@ incidentsRouter.post("/", requireAuth, async (req, res) => {
     })
     .parse(req.body);
 
-  const inc = await prisma.incident.create({
-    data: {
-      incidentId: body.incidentId,
-      title: body.title,
-      description: body.description,
-      caseNumber: body.caseNumber,
-      createdByUserId: req.currentUser!.id,
-    },
-  });
-  res.json({ incident: inc });
+  try {
+    const inc = await prisma.incident.create({
+      data: {
+        incidentId: body.incidentId,
+        title: body.title,
+        description: body.description,
+        caseNumber: body.caseNumber,
+        createdByUserId: req.currentUser!.id,
+      },
+    });
+    res.json({ incident: inc });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const existing = await prisma.incident.findUnique({
+        where: { incidentId: body.incidentId },
+      });
+      return res.status(409).json({
+        error: "incident_id_exists",
+        message: "That incident id already exists.",
+        incident: existing,
+      });
+    }
+    throw e;
+  }
 });
 
 incidentsRouter.get("/:incidentId", requireAuth, async (req, res) => {
