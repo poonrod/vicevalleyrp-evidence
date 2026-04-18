@@ -90,11 +90,17 @@ Config.EnableClipMode = true
 Config.ClipMinActiveSeconds = 5
 -- Minimum **recorded WebM** length (seconds); clips shorter than this are discarded (NUI) and the player is notified.
 Config.ClipMinUploadSeconds = 5
--- Lower FPS reduces NUI encoder load and stutter when screenshot-basic cannot keep up.
-Config.ClipRecordFps = 24
-Config.ClipRecordFpsMax = 30
+-- Clip FPS: lower = smaller files and less CPU; 20 is a good balance for VP9 + screenshot-basic latency.
+Config.ClipRecordFps = 20
+Config.ClipRecordFpsMax = 24
 Config.ClipMaxFramesCap = 720
 Config.ClipEstimatedMaxMB = 96
+-- Hold first-person for the whole WebM clip (not per-frame). Turn off to record in your current camera mode.
+Config.UseFirstPersonForClipRecording = true
+-- If true, clip first-person also requires the personal "First-person capture" toggle in /bcamconfig.
+Config.ClipFirstPersonRequiresSnapshotToggle = false
+-- JPEG quality for clip frames (before VP9). Higher = sharper source frames, larger data URLs.
+Config.ClipJpegQuality = 0.88
 -- Mix the player's real microphone (browser getUserMedia) into the WebM when supported.
 -- This is the physical mic — not a tap of Mumble/VOIP or GTA world SFX (see README).
 Config.EnableClipRecordingMicrophone = true
@@ -108,8 +114,9 @@ Config.ShortClipMaxSeconds = 30
 Config.MediumClipMaxSeconds = 300
 Config.LongVideoMaxSeconds = 1800
 Config.MaxClipFileSizeMB = 100
-Config.ShortClipResolution = "1280x720"
-Config.ShortClipBitrateKbps = 2000
+-- 960x540 + VP9 at ~1.4 Mbps is readable and keeps WebMs small; raise bitrate if quality-first.
+Config.ShortClipResolution = "960x540"
+Config.ShortClipBitrateKbps = 1400
 Config.MediumClipResolution = "1280x720"
 Config.MediumClipBitrateKbps = 1500
 Config.LongVideoResolution = "960x540"

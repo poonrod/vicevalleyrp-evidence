@@ -33,3 +33,26 @@ function CameraClient.EndSnapshotFirstPerson()
     end
     snapshotSaved = nil
 end
+
+--- Hold first-person for an entire WebM clip (one switch in / out; avoids per-frame flicker).
+local clipFpActive = false
+local clipFpSaved = nil
+
+function CameraClient.BeginClipSessionFirstPerson()
+    if clipFpActive then return end
+    clipFpActive = true
+    clipFpSaved = GetFollowPedCamViewMode()
+    SetFollowPedCamViewMode(4)
+    for _ = 1, 12 do
+        Wait(0)
+    end
+end
+
+function CameraClient.EndClipSessionFirstPerson()
+    if not clipFpActive then return end
+    clipFpActive = false
+    if clipFpSaved ~= nil and Config.RestorePreviousCameraModeOnDisable then
+        SetFollowPedCamViewMode(clipFpSaved)
+    end
+    clipFpSaved = nil
+end

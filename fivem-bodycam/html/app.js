@@ -178,7 +178,6 @@ function pickRecorderMime(withAudio) {
     ? [
         "video/webm;codecs=vp9,opus",
         "video/webm;codecs=vp8,opus",
-        "video/webm;codecs=opus",
         "video/webm;codecs=vp9",
         "video/webm;codecs=vp8",
         "video/webm",
@@ -273,12 +272,15 @@ async function startClipSession(d) {
   if (hasAudio) tracks.push(...micStream.getAudioTracks());
   const merged = new MediaStream(tracks);
 
-  const kbps = Math.max(400, Math.min(12000, Number(d.clipVideoBitrateKbps) || 2000));
+  const kbps = Math.max(400, Math.min(12000, Number(d.clipVideoBitrateKbps) || 1400));
+  const px = Math.max(1, initW * initH);
+  const refPx = 960 * 540;
+  const scaledKbps = Math.round(Math.min(10000, Math.max(600, (kbps * refPx) / px)));
   const recOpts = {
     mimeType: mime,
-    videoBitsPerSecond: kbps * 1000,
+    videoBitsPerSecond: scaledKbps * 1000,
   };
-  if (hasAudio) recOpts.audioBitsPerSecond = 128_000;
+  if (hasAudio) recOpts.audioBitsPerSecond = 96_000;
 
   let recorder;
   try {
@@ -340,6 +342,8 @@ function pushClipFrame(d) {
       canvas.width = tw;
       canvas.height = th;
     }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, 0, 0, tw, th);
     drawBodycamWatermark(ctx, clipSession, canvas.width);
   };

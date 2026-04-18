@@ -85,6 +85,7 @@ RegisterNUICallback('bodycam_put_done', function(body, cb)
 end)
 
 local function completeAfterClipPut(cid, body)
+    CameraClient.EndClipSessionFirstPerson()
     local pending = pendingPresigned[cid]
     if not pending or not pending.clipMode then return end
     pendingPresigned[cid] = nil
@@ -131,7 +132,7 @@ local function completeAfterClipPut(cid, body)
         mimeType = 'video/webm',
         fileSize = fileSize,
         durationSeconds = durationSeconds,
-        codec = 'vp8',
+        codec = 'vp9',
         locationX = coords.x,
         locationY = coords.y,
         locationZ = coords.z,
@@ -155,18 +156,23 @@ RegisterNUICallback('bodycam_clip_put_done', function(body, cb)
     completeAfterClipPut(tostring(cid), body)
 end)
 
-local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes)
-    if wantFp then
+local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes, clipHoldFp)
+    local jpgQ = tonumber(Config.ClipJpegQuality) or 0.88
+    jpgQ = math.max(0.55, math.min(0.98, jpgQ))
+    if wantFp and not clipHoldFp then
         CameraClient.BeginSnapshotFirstPerson()
     end
     exports[shotRes]:requestScreenshot({
         encoding = 'jpg',
-        quality = 0.85,
+        quality = jpgQ,
     }, function(dataUrl)
-        if wantFp then
+        if wantFp and not clipHoldFp then
             CameraClient.EndSnapshotFirstPerson()
         end
         if type(dataUrl) ~= 'string' or not dataUrl:find('^data:', 1, false) then
+            if clipHoldFp then
+                CameraClient.EndClipSessionFirstPerson()
+            end
             pendingPresigned[cid] = nil
             Bodycam.clipRecording = false
             SendNUIMessage({ type = 'bodycam_clip_abort', correlation = cid })
@@ -180,12 +186,15 @@ local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes)
             dataUrl = dataUrl,
         })
         if i >= maxFrames - 1 then
+            if clipHoldFp then
+                CameraClient.EndClipSessionFirstPerson()
+            end
             Citizen.SetTimeout(520, function()
                 SendNUIMessage({ type = 'bodycam_clip_end', correlation = cid })
             end)
         else
             Citizen.SetTimeout(gap, function()
-                captureClipFrame(i + 1, maxFrames, cid, data, wantFp, gap, shotRes)
+                captureClipFrame(i + 1, maxFrames, cid, data, wantFp, gap, shotRes, clipHoldFp)
             end)
         end
     end)
@@ -218,9 +227,11 @@ local function startWebmClipFromPresign(data)
     }
     Bodycam.clipRecording = true
 
-    -- Clip mode: do **not** toggle first-person every frame (causes 1st/3rd flicker when bodycam turns off).
-    -- Single snapshots still use first-person framing when configured.
-    local wantFpClip = false
+    -- Hold first-person for the whole clip (BeginClip… / EndClip…) when enabled — no per-frame toggle.
+    local wantClipHoldFp = Config.UseFirstPersonForClipRecording ~= false
+    if Config.ClipFirstPersonRequiresSnapshotToggle then
+        wantClipHoldFp = wantClipHoldFp and Bodycam.personal.firstPerson
+    end
     local includeMic = Config.EnableClipRecordingMicrophone ~= false
 
     local iso = Utils.NowIsoUtc()
@@ -251,7 +262,10 @@ local function startWebmClipFromPresign(data)
     })
 
     Citizen.SetTimeout(80, function()
-        captureClipFrame(0, maxFrames, cid, data, wantFpClip, gap, shotRes)
+        if wantClipHoldFp then
+            CameraClient.BeginClipSessionFirstPerson()
+        end
+        captureClipFrame(0, maxFrames, cid, data, false, gap, shotRes, wantClipHoldFp)
     end)
 end
 
