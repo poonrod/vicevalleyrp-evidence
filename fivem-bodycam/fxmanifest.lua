@@ -26,6 +26,7 @@ client_scripts {
     'client/config_menu.lua',
     'client/keybinds.lua',
     'client/main.lua',
+    'client/clip_display_audio.lua',
 }
 
 server_scripts {

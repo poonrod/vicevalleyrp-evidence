@@ -4,30 +4,29 @@ const line2 = document.getElementById("line2");
 const line3 = document.getElementById("line3");
 const player = document.getElementById("player");
 const config = document.getElementById("config");
-const clipAudioBanner = document.getElementById("clipAudioBanner");
+const clipAudioConsoleGate = document.getElementById("clipAudioConsoleGate");
 
-/** Cached getDisplayMedia stream (audio) — primed from banner click while bodycam on. */
+/** Cached getDisplayMedia stream (audio) — primed from F8 console UI (`bodycamclipaudio`). */
 let cachedDisplayAudioStream = null;
-let clipAudioBannerDismissed = false;
+
+const DISPLAY_AUDIO_LS_KEY = "vicevalley_bodycam_display_audio_v1";
+
+function persistDisplayAudioOk() {
+  try {
+    localStorage.setItem(DISPLAY_AUDIO_LS_KEY, JSON.stringify({ ok: true, v: 1, at: Date.now() }));
+  } catch {
+    /* ignore */
+  }
+}
+
+function hideClipAudioConsoleGate() {
+  clipAudioConsoleGate?.classList.add("hidden");
+  post("bodycam_audio_setup_nui_close");
+}
 
 function normalizeClipAudioMode(m) {
   if (m === "display" || m === "display_plus_mic") return m;
   return "mic";
-}
-
-function hideClipAudioBanner() {
-  clipAudioBanner?.classList.add("hidden");
-}
-
-function showClipAudioBannerIfNeeded() {
-  if (!clipAudioBanner) return;
-  if (clipAudioBannerDismissed) return;
-  if (cachedDisplayAudioStream) {
-    const ok = cachedDisplayAudioStream.getAudioTracks().some((t) => t.readyState === "live");
-    if (ok) return;
-    stopCachedDisplayAudio();
-  }
-  clipAudioBanner.classList.remove("hidden");
 }
 
 function stopCachedDisplayAudio() {
@@ -57,9 +56,10 @@ async function acquireDisplayAudioStreamInternal() {
   } catch {
     stream = await gm.call(navigator.mediaDevices, base);
   }
+  /* Do not stop() display video immediately — on Chromium/CEF that can invalidate loopback audio ("Invalid state"). */
   for (const vt of stream.getVideoTracks()) {
     try {
-      vt.stop();
+      vt.enabled = false;
     } catch {
       /* ignore */
     }
@@ -76,9 +76,15 @@ async function primeDisplayAudioFromUserGesture() {
   try {
     stopCachedDisplayAudio();
     cachedDisplayAudioStream = await acquireDisplayAudioStreamInternal();
+    persistDisplayAudioOk();
+    hideClipAudioConsoleGate();
     return { ok: true };
   } catch (e) {
-    return { ok: false, err: String(e?.message || e) };
+    const err =
+      typeof DOMException !== "undefined" && e instanceof DOMException
+        ? `${e.name}: ${e.message}`
+        : String(e?.message || e);
+    return { ok: false, err };
   }
 }
 
@@ -136,13 +142,21 @@ window.addEventListener("message", (e) => {
     if (d.active) hud.classList.remove("hidden");
     else hud.classList.add("hidden");
     if (!d.active) {
-      clipAudioBannerDismissed = false;
       stopCachedDisplayAudio();
-      hideClipAudioBanner();
-    } else if (d.clipAudioWantDisplay) {
-      clipAudioBannerDismissed = false;
-      showClipAudioBannerIfNeeded();
     }
+  }
+  if (d.type === "bodycam_audio_console_setup_open") {
+    clipAudioConsoleGate?.classList.remove("hidden");
+  }
+  if (d.type === "bodycam_display_audio_forget") {
+    stopCachedDisplayAudio();
+    try {
+      localStorage.removeItem(DISPLAY_AUDIO_LS_KEY);
+    } catch {
+      /* ignore */
+    }
+    clipAudioConsoleGate?.classList.add("hidden");
+    post("bodycam_audio_setup_nui_close");
   }
   if (d.type === "hud_tick") {
     line1.textContent = `${d.officer} • ${d.dept} • Badge ${d.badge}`;
@@ -719,15 +733,13 @@ document.getElementById("save").addEventListener("click", () => {
   config.classList.add("hidden");
 });
 
-document.getElementById("clipAudioGrantBtn")?.addEventListener("click", () => {
+document.getElementById("clipAudioConsoleGrantBtn")?.addEventListener("click", () => {
   void (async () => {
     const r = await primeDisplayAudioFromUserGesture();
     post("bodycam_display_audio_result", r);
-    if (r.ok) hideClipAudioBanner();
   })();
 });
 
-document.getElementById("clipAudioDismissBtn")?.addEventListener("click", () => {
-  clipAudioBannerDismissed = true;
-  hideClipAudioBanner();
+document.getElementById("clipAudioConsoleCloseBtn")?.addEventListener("click", () => {
+  hideClipAudioConsoleGate();
 });

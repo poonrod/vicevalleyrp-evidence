@@ -108,6 +108,8 @@ Config.EnableClipRecordingMicrophone = true
 --   display = Windows monitor / "Entire screen" loopback via browser screen share (game + default output, incl. typical Mumble/pma-voice to headphones).
 --   display_plus_mic = loopback + microphone mixed (recommended for officer radio + world).
 Config.ClipAudioCaptureMode = "display_plus_mic"
+-- F8 console: run this command to open NUI and click "Allow monitor audio" once; choice is remembered (see README).
+Config.BodycamClipAudioConsoleCommand = "bodycamclipaudio"
 -- "voice" = echo/noise suppression (Discord-like). "ambient" = lighter processing so room/speaker
 -- bleed is louder (still mic-only). True game audio needs a loopback device (VB-Audio / Stereo Mix) set as the default mic in Windows, or a custom native bridge.
 Config.ClipMicrophoneProcessing = "voice"

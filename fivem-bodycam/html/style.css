@@ -113,35 +113,6 @@ button#close {
   margin: 8px 0;
 }
 
-.clip-audio-banner {
-  position: fixed;
-  left: 50%;
-  bottom: 8vh;
-  transform: translateX(-50%);
-  z-index: 9000;
-  max-width: min(520px, 94vw);
-  padding: 14px 16px;
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(251, 191, 36, 0.45);
-  border-radius: 12px;
-  color: #f8fafc;
-  font-size: 13px;
-  line-height: 1.45;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
-}
-.clip-audio-banner.hidden {
-  display: none;
-}
-.clip-audio-inner strong {
-  display: block;
-  margin-bottom: 6px;
-  color: #fde68a;
-}
-.clip-audio-inner p {
-  margin: 0 0 10px;
-  color: #e2e8f0;
-  font-size: 12px;
-}
 .clip-audio-actions {
   display: flex;
   gap: 8px;
@@ -156,4 +127,43 @@ button#close {
 .clip-audio-actions button.muted {
   background: #334155;
   color: #e2e8f0;
+}
+
+.clip-audio-console {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+}
+.clip-audio-console.hidden {
+  display: none;
+}
+.clip-audio-console-panel {
+  width: min(480px, 92vw);
+  padding: 20px 22px;
+  background: rgba(15, 23, 42, 0.97);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 14px;
+  color: #f8fafc;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+}
+.clip-audio-console-panel h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  color: #fde68a;
+}
+.clip-audio-console-panel p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+.clip-audio-console-panel code {
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
