@@ -199,6 +199,9 @@ window.addEventListener("message", (e) => {
   if (d.type === "bodycam_mic_warmup") {
     void warmUpMicrophone(d);
   }
+  if (d.type === "bodycam_enumerate_audio_inputs") {
+    void enumerateAudioInputsToGame();
+  }
   if (d.type === "bodycam_clip_begin") {
     void startClipSession(d);
   }
@@ -232,14 +235,32 @@ function resourceName() {
 /** Short WebM bodycam clip: frames from Lua → canvas → MediaRecorder → presigned PUT. */
 let clipSession = null;
 
-function clipMicAudioConstraints(processing) {
+function clipMicAudioConstraints(processing, deviceId) {
   const ambient = processing === "ambient";
-  return {
+  const base = {
     echoCancellation: !ambient,
     noiseSuppression: !ambient,
     autoGainControl: true,
-    channelCount: 1,
   };
+  if (typeof deviceId === "string" && deviceId.trim() !== "") {
+    return { ...base, deviceId: { exact: deviceId.trim() } };
+  }
+  return { ...base, channelCount: 1 };
+}
+
+async function enumerateAudioInputsToGame() {
+  try {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      post("bodycam_enumerate_audio_inputs_result", { ok: false, err: "enumerateDevices_unavailable" });
+      return;
+    }
+    const list = (await navigator.mediaDevices.enumerateDevices())
+      .filter((x) => x.kind === "audioinput")
+      .map((x) => ({ deviceId: x.deviceId, label: x.label || "" }));
+    post("bodycam_enumerate_audio_inputs_result", { ok: true, devices: list });
+  } catch (e) {
+    post("bodycam_enumerate_audio_inputs_result", { ok: false, err: String(e?.message || e) });
+  }
 }
 
 async function warmUpMicrophone(d) {
@@ -248,9 +269,10 @@ async function warmUpMicrophone(d) {
     return;
   }
   const proc = d && d.clipMicProcessing === "ambient" ? "ambient" : "voice";
+  const micDev = d && typeof d.clipMicrophoneDeviceId === "string" ? d.clipMicrophoneDeviceId : "";
   try {
     const s = await navigator.mediaDevices.getUserMedia({
-      audio: clipMicAudioConstraints(proc),
+      audio: clipMicAudioConstraints(proc, micDev),
       video: false,
     });
     for (const t of s.getTracks()) t.stop();
@@ -414,10 +436,11 @@ async function startClipSession(d) {
 
   let micStream = null;
   const micProc = d.clipMicProcessing === "ambient" ? "ambient" : "voice";
+  const micDev = typeof d.clipMicrophoneDeviceId === "string" ? d.clipMicrophoneDeviceId : "";
   if (wantMic) {
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
-        audio: clipMicAudioConstraints(micProc),
+        audio: clipMicAudioConstraints(micProc, micDev),
         video: false,
       });
     } catch {

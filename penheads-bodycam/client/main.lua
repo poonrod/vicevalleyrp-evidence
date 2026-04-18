@@ -56,6 +56,7 @@ function Bodycam.SetActive(on, sourceKind)
         SendNUIMessage({
             type = 'bodycam_mic_warmup',
             clipMicProcessing = (Config.ClipMicrophoneProcessing == 'ambient') and 'ambient' or 'voice',
+            clipMicrophoneDeviceId = type(Config.ClipMicrophoneDeviceId) == 'string' and Config.ClipMicrophoneDeviceId or '',
         })
     end
 

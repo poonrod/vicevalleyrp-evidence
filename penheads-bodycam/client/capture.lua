@@ -265,6 +265,7 @@ local function startWebmClipFromPresign(data)
         clipMaxHeight = clipH,
         clipMicProcessing = (Config.ClipMicrophoneProcessing == 'ambient') and 'ambient' or 'voice',
         clipAudioCaptureMode = capMode,
+        clipMicrophoneDeviceId = type(Config.ClipMicrophoneDeviceId) == 'string' and Config.ClipMicrophoneDeviceId or '',
     })
 
     Citizen.SetTimeout(80, function()
@@ -420,6 +421,31 @@ RegisterNUICallback('bodycam_clip_audio_fallback', function(body, cb)
     end
     Bodycam.Notify('~o~Clip: no system loopback — saving microphone audio only')
 end)
+
+RegisterNUICallback('bodycam_enumerate_audio_inputs_result', function(body, cb)
+    cb({})
+    if type(body) ~= 'table' then return end
+    if body.ok ~= true then
+        print('^1[bodycam] bodycam_mic_devices: ' .. tostring(body.err or 'failed') .. '^7')
+        return
+    end
+    local devs = body.devices
+    if type(devs) ~= 'table' or #devs == 0 then
+        print('^3[bodycam] No audio inputs listed. Toggle bodycam ON once to allow the mic prompt, then run bodycam_mic_devices again.^7')
+        return
+    end
+    print('^2[bodycam] Audio inputs (set Config.ClipMicrophoneDeviceId or setr bodycam_clip_mic_device_id to the id):^7')
+    for _, row in ipairs(devs) do
+        local label = type(row.label) == 'string' and row.label or ''
+        local id = type(row.deviceId) == 'string' and row.deviceId or ''
+        print(('  ^6%s^7'):format(label ~= '' and label or '(no label)'))
+        print(('    ^5%s^7'):format(id))
+    end
+end)
+
+RegisterCommand('bodycam_mic_devices', function()
+    SendNUIMessage({ type = 'bodycam_enumerate_audio_inputs' })
+end, false)
 
 RegisterCommand('bcamsnap', function()
     if not Bodycam.active then

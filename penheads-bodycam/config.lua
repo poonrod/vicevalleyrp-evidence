@@ -117,8 +117,16 @@ end
 -- F8 console: run this command to open NUI and click "Allow monitor audio" once; choice is remembered (see README).
 Config.BodycamClipAudioConsoleCommand = "bodycamclipaudio"
 -- "voice" = echo/noise suppression (Discord-like). "ambient" = lighter processing so room/speaker
--- bleed is louder (still mic-only). True game audio needs a loopback device (VB-Audio / Stereo Mix) set as the default mic in Windows, or a custom native bridge.
+-- bleed is louder (still mic-only). For more room/speaker without extra apps, prefer "ambient".
 Config.ClipMicrophoneProcessing = "voice"
+-- Optional exact Windows/Chromium recording device id for clip mic (getUserMedia). Empty = system default.
+-- Lets you bind a driver-provided loopback such as "Stereo Mix" / "What U Hear" when available — no Voicemeeter required.
+-- F8 `bodycam_mic_devices` lists inputs after mic permission (toggle bodycam on once). Override: setr bodycam_clip_mic_device_id "<id>"
+Config.ClipMicrophoneDeviceId = ''
+local _micDevCv = GetConvar('bodycam_clip_mic_device_id', '')
+if type(_micDevCv) == 'string' and _micDevCv:match('%S') then
+    Config.ClipMicrophoneDeviceId = _micDevCv:match('^%s*(.-)%s*$') or ''
+end
 -- Legacy flag — real game path uses ClipAudioCaptureMode display* + getDisplayMedia (README).
 Config.EnableClipRecordingGameAudio = false
 Config.EnableLongVideoMode = false

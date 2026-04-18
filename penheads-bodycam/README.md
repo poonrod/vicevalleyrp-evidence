@@ -52,6 +52,11 @@ After the officer turns **bodycam off**, the client captures a burst of **JPEG f
   - **`display_plus_mic`** (default) — **loopback + microphone** mixed in NUI (Web Audio) so your radio / local talk is included with world audio.
   **Setup (F8 only):** With display modes enabled, run **`bodycamclipaudio`** in the **F8** client console (override via `Config.BodycamClipAudioConsoleCommand`). That opens NUI with mouse focus so the player can click **Allow monitor audio** and pick the monitor with **Share audio** — Chromium requires that gesture. A successful grant is **remembered in the FiveM CEF profile** (localStorage). **`bodycamclipaudio_clear`** (same prefix + `_clear`) wipes that preference and stops any cached capture. If a clip still cannot get loopback audio (browser/OS policy), run **`bodycamclipaudio`** again. If they skip setup, the first clip may fall back to mic-only (`display_plus_mic`) or fail (`display` only).
   - **`%AppData%\Roaming\CitizenFX\media_access.json`:** The FiveM **client** may write NUI media allow data here (often keyed by **connect endpoint** — keep **one stable** server hostname/IP so players are not treated as a new site each time). You **cannot** ship a “grant file” with this resource that forces desktop audio: the format is **internal**, the client **owns** the file, and community reports show **manual edits do not fix** `getDisplayMedia` failing with **`Invalid state`** after prompts ([citizenfx/fivem#3241](https://github.com/citizenfx/fivem/issues/3241)). For **reliable** game + comms when loopback fails, use **Windows routing** (e.g. Voicemeeter / VB-Cable) into the **default mic** and **`ClipAudioCaptureMode = "mic"`**.
+- **Max audio without installing extra apps (recommended stack):**
+  1. Keep **`ClipAudioCaptureMode = "display_plus_mic"`** and run **`bodycamclipaudio`** so loopback is used when FiveM’s CEF allows it (monitor + **Share audio**). Stay on a **current** FiveM client build.
+  2. Set **`ClipMicrophoneProcessing = "ambient"`** if you want **less** AEC/NS on the mic leg (more room / speaker bleed; still not engine PCM by itself).
+  3. **Windows-only, no third-party program:** some sound drivers expose **Stereo Mix** / **What U Hear** in *Sound → Recording* (right-click empty area → **Show Disabled Devices** → enable). Then run F8 **`bodycam_mic_devices`** (after toggling bodycam **on** once so the mic prompt ran), copy the **`deviceId`** for that input into **`Config.ClipMicrophoneDeviceId`** or **`setr bodycam_clip_mic_device_id "…"`** — clips will record that input as the “mic” track (often includes **game output** already routed to that device). Not all PCs expose Stereo Mix.
+  4. If loopback + Stereo Mix are both unavailable, fall back to **`setr bodycam_clip_audio_mode mic`** and accept mic-only clips.
 - **Bitrate / resolution:** WebM encoding uses **`ShortClipBitrateKbps`** and downscales frames to **`ShortClipResolution`** before `MediaRecorder` so the encoder keeps up; if clips still hitch, lower **`ClipRecordFps`** or max seconds.
 
 **Periodic JPEG snapshots are disabled while clip mode is on.** Set `EnableClipMode = false` if you only want interval photos.
@@ -78,6 +83,7 @@ set bodycam_framework "c7fw"
 | `/bcamconfig` | NUI settings (sleeping mode, auto taser/firearm, etc.) |
 | F8: `bodycamclipaudio` | Clip monitor / system audio setup (only when `ClipAudioCaptureMode` is `display` or `display_plus_mic`; command from `Config.BodycamClipAudioConsoleCommand`) |
 | F8: `bodycamclipaudio_clear` | Clear saved clip monitor-audio preference (`<command>_clear`) |
+| F8: `bodycam_mic_devices` | Print audio input **`deviceId`** lines for **`ClipMicrophoneDeviceId`** / **`bodycam_clip_mic_device_id`** (run after bodycam was on once so labels can populate) |
 
 Change default key in `config.lua` → `ToggleKeybindDefault`.
 
