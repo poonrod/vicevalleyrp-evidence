@@ -397,8 +397,18 @@ RegisterNUICallback('bodycam_display_audio_result', function(body, cb)
     end
     local err = tostring(body.err or 'denied')
     Bodycam.Notify('~o~Bodycam: system audio not granted — ' .. err)
-    if err:find('Invalid state', 1, true) or err:find('NotAllowedError', 1, true) then
-        print('^3[bodycam] FiveM NUI often cannot complete getDisplayMedia (CEF). Use microphone-only clips: set Config.ClipAudioCaptureMode to ^"mic^" in penheads-bodycam/config.lua, or server.cfg: setr bodycam_clip_audio_mode mic^7')
+    local el = err:lower()
+    -- Do not treat every NotAllowedError as CEF: "Permission denied" is often user dismissed / blocked the picker.
+    if el:find('invalid state', 1, true) then
+        print('^3[bodycam] getDisplayMedia failed with Invalid state after the dialog — common FiveM NUI/CEF bug. Reliable workaround: set Config.ClipAudioCaptureMode to ^"mic^" in penheads-bodycam/config.lua, or server.cfg: setr bodycam_clip_audio_mode mic^7')
+    elseif el:find('no_system_audio_track', 1, true) then
+        print('^3[bodycam] Share ran but no audio track. In the picker choose the monitor running GTA and enable Share audio (Windows). Or use setr bodycam_clip_audio_mode mic for mic-only clips.^7')
+    elseif el:find('getdisplaymedia_unavailable', 1, true) then
+        print('^3[bodycam] getDisplayMedia is unavailable in this client. Use setr bodycam_clip_audio_mode mic.^7')
+    elseif el:find('notallowederror', 1, true) and el:find('permission denied', 1, true) then
+        print('^3[bodycam] Screen capture was denied or canceled. Try again: Allow, pick the game monitor, enable Share audio. If it still fails, use setr bodycam_clip_audio_mode mic.^7')
+    elseif el:find('notallowederror', 1, true) then
+        print('^3[bodycam] Display capture failed (^7' .. err .. '^3). Retry bodycamclipaudio with monitor + Share audio, or use setr bodycam_clip_audio_mode mic.^7')
     end
 end)
 
