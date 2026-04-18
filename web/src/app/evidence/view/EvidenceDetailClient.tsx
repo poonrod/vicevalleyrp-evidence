@@ -6,9 +6,13 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useRouter, useSearchParams } from "next/navigation";
 
+/** Evidence row ids are UUIDs; reject junk like `index.txt` from bad static-export / base-tag resolution. */
+const EVIDENCE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function EvidenceDetailClient() {
   const searchParams = useSearchParams();
-  const id = searchParams.get("id");
+  const rawId = searchParams.get("id");
+  const id = rawId && EVIDENCE_ID_RE.test(rawId) ? rawId : null;
   const router = useRouter();
   const [ev, setEv] = useState<Record<string, unknown> | null>(null);
   const [url, setUrl] = useState<string | null>(null);
