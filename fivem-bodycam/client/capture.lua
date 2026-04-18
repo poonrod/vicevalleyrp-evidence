@@ -181,10 +181,13 @@ local function startWebmClipFromPresign(data)
     presignedCorrelation = presignedCorrelation + 1
     local cid = tostring(presignedCorrelation)
 
-    local fps = math.max(1, math.min(8, math.floor(tonumber(data.clipFps) or 2)))
-    local sec = math.max(3, math.min(tonumber(data.clipSeconds) or 12, Config.ShortClipMaxSeconds or 15))
-    local maxFrames = math.min(48, math.ceil(sec * fps))
-    local gap = math.max(120, math.floor(1000 / fps))
+    local fpsMax = math.max(1, math.floor(tonumber(Config.ClipRecordFpsMax) or 30))
+    local requested = math.floor(tonumber(data.clipFps) or tonumber(Config.ClipRecordFps) or 30)
+    local fps = math.max(1, math.min(fpsMax, requested))
+    local sec = math.max(3, math.min(tonumber(data.clipSeconds) or 12, Config.ShortClipMaxSeconds or 30))
+    local cap = math.max(60, math.floor(tonumber(Config.ClipMaxFramesCap) or 720))
+    local maxFrames = math.min(cap, math.ceil(sec * fps))
+    local gap = math.max(16, math.floor(1000 / fps))
 
     pendingPresigned[cid] = {
         clipMode = true,
@@ -196,6 +199,7 @@ local function startWebmClipFromPresign(data)
     Bodycam.clipRecording = true
 
     local wantFp = Config.UseFirstPersonForSnapshots and Bodycam.personal.firstPerson
+    local includeMic = Config.EnableClipRecordingMicrophone ~= false
 
     SendNUIMessage({
         type = 'bodycam_clip_begin',
@@ -203,6 +207,7 @@ local function startWebmClipFromPresign(data)
         url = data.url,
         fps = fps,
         maxFrames = maxFrames,
+        includeMic = includeMic,
     })
 
     Citizen.SetTimeout(80, function()
@@ -277,7 +282,7 @@ function CaptureClient.TryFinalizeWebmClip(sessionDurMs)
         captureType = 'bodycam_clip_stop',
         videoTier = 'short',
         clipMaxSeconds = capSec,
-        clipRecordFps = Config.ClipRecordFps or 2,
+        clipRecordFps = Config.ClipRecordFps or 30,
     })
 end
 

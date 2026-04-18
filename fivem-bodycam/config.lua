@@ -84,10 +84,18 @@ Config.RestorePreviousCameraModeOnDisable = true
 -- Video tiers (policy enforced server/API; client hints for UX)
 -- When true, turning bodycam off records a short WebM (canvas + MediaRecorder in NUI) from
 -- rapid screenshots, and periodic JPEG snapshots are disabled while this is true.
+-- Target FPS: screenshot-basic latency usually caps real throughput below this; tune if stuttery.
 Config.EnableClipMode = true
 Config.ClipMinActiveSeconds = 4
-Config.ClipRecordFps = 2
-Config.ClipEstimatedMaxMB = 40
+Config.ClipRecordFps = 30
+Config.ClipRecordFpsMax = 30
+Config.ClipMaxFramesCap = 720
+Config.ClipEstimatedMaxMB = 96
+-- Mix the player's real microphone (browser getUserMedia) into the WebM when supported.
+-- This is the physical mic — not a tap of Mumble/VOIP or GTA world SFX (see README).
+Config.EnableClipRecordingMicrophone = true
+-- Reserved: CEF/NUI cannot read GTA engine audio or Mumble output; keep false unless you add a custom native bridge.
+Config.EnableClipRecordingGameAudio = false
 Config.EnableLongVideoMode = false
 Config.ShortClipMaxSeconds = 30
 Config.MediumClipMaxSeconds = 300

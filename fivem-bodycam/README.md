@@ -33,15 +33,21 @@ Put those **`set` lines above `ensure fivem-bodycam`** in `server.cfg` so the re
 
 **Standalone + “nothing hits the API”:** With `RestrictToLawEnforcement = true`, job names came only from `AllowedJobs` (`police`, `sheriff`). The standalone framework reports job **`standalone`** for everyone, so uploads were blocked before any HTTP call. The server script now treats **`standalone`** as law enforcement when `bodycam_framework` is `standalone`. The **client** matches that for equipment / toggle checks when `LocalPlayer.state.jobName` is `standalone`. For stricter public servers, use **ACE** (`UseAcePermissions`) or set **`RestrictToLawEnforcement = false`** only on private test boxes.
 
-**Test server still not uploading:** (1) Player must have a **`discord:`** identifier or C7 Discord field — otherwise you get “No Discord identifier”. (2) `bodycam_api_base` must be a URL your **FXServer machine** can reach (`PerformHttpRequest` runs on the server). `http://127.0.0.1:4000` only works if the evidence API listens on the same host as the game server. (3) `bodycam_api_secret` must exactly match **`FIVEM_API_SECRET`** in the API `.env`. (4) `ensure screenshot-basic` before bodycam and confirm it is **started** (not “starting”). (5) This MVP sends **JPEG snapshots** (manual `/bcamsnap`, periodic while recording, auto on taser/gun), not MP4 clips — clip modes stay off unless you build that flow.
+**Test server still not uploading:** (1) Player must have a **`discord:`** identifier or C7 Discord field — otherwise you get “No Discord identifier”. (2) `bodycam_api_base` must be a URL your **FXServer machine** can reach (`PerformHttpRequest` runs on the server). `http://127.0.0.1:4000` only works if the evidence API listens on the same host as the game server. (3) `bodycam_api_secret` must exactly match **`FIVEM_API_SECRET`** in the API `.env`. (4) `ensure screenshot-basic` before bodycam and confirm it is **started** (not “starting”). (5) With clip mode off, you still get **JPEG snapshots** (manual `/bcamsnap`, periodic while recording, auto on taser/gun). With clip mode on, turning bodycam off also produces a **WebM clip** (see above).
 
 **Verbose server logs:** add `set bodycam_debug "1"` next to your other bodycam convars; failed upload-url / complete calls print one line to the server console with the error string.
 
 ## WebM clip (when `Config.EnableClipMode` is true)
 
-After the officer turns **bodycam off**, the client captures a short burst of **JPEG frames** from `screenshot-basic`, encodes them in NUI with **MediaRecorder** into **WebM (VP8/VP9)**, then **PUTs** the blob to the same presigned flow as photos. Length is capped by `ShortClipMaxSeconds` and session time. **Periodic JPEG snapshots are disabled while clip mode is on** so the portal is not flooded with stills. Turn clip mode off in `config.lua` (`EnableClipMode = false`) if you only want interval photos again.
+After the officer turns **bodycam off**, the client captures a burst of **JPEG frames** from `screenshot-basic`, encodes them in NUI with **MediaRecorder** into **WebM** (prefers **VP9 + Opus** when the browser supports it), then **PUTs** the blob to the same presigned flow as photos.
 
-R2/S3 **CORS** must allow **PUT** with `Content-Type: video/webm` from `https://cfx-nui-*` origins (same as JPEG). If the clip step fails, check the client F8 console and server `bodycam_debug` lines.
+- **FPS:** `ClipRecordFps` / `ClipRecordFpsMax` default to **30**. Real frame rate is often **lower** than the target because each `requestScreenshot` call takes time; if the client stutters or clips fail, reduce FPS or `ShortClipMaxSeconds` in `config.lua`. `ClipMaxFramesCap` limits total frames for safety.
+- **Microphone:** When `EnableClipRecordingMicrophone` is true (default), NUI calls **`getUserMedia({ audio })`** and mixes that track into the WebM. That is the player’s **physical microphone** in Windows (what Discord/browser would use). The player may get a browser permission prompt the first time.
+- **In-game SFX + Mumble / voice chat audio:** The GTA engine mix and Mumble output are **not exposed to CEF**. `EnableClipRecordingGameAudio` is reserved and stays **false** unless you ship a **custom native / voice resource** that feeds PCM into this resource. There is no supported way to “tap” game world audio from Lua+NUI alone.
+
+**Periodic JPEG snapshots are disabled while clip mode is on.** Set `EnableClipMode = false` if you only want interval photos.
+
+R2/S3 **CORS** must allow **PUT** with `Content-Type: video/webm` from `https://cfx-nui-*` origins. If the clip step fails, check F8 and server `bodycam_debug` lines.
 
 **C7 Framework V3** — set `bodycam_framework` to `c7fw` and align `AllowedJobs` in `config.lua` with C7 department IDs (`GetCharDept` / `char_department`, e.g. `lspd`):
 

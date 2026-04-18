@@ -29,7 +29,7 @@ window.addEventListener("message", (e) => {
     void runPresignedPut(d);
   }
   if (d.type === "bodycam_clip_begin") {
-    startClipSession(d);
+    void startClipSession(d);
   }
   if (d.type === "bodycam_clip_frame") {
     pushClipFrame(d);
@@ -61,18 +61,37 @@ function resourceName() {
 /** Short WebM bodycam clip: frames from Lua → canvas → MediaRecorder → presigned PUT. */
 let clipSession = null;
 
-function pickRecorderMime() {
+function pickRecorderMime(withAudio) {
   if (typeof MediaRecorder === "undefined") return "";
-  const opts = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  const opts = withAudio
+    ? [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm;codecs=opus",
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+      ]
+    : ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
   for (const o of opts) {
     if (MediaRecorder.isTypeSupported(o)) return o;
   }
   return "";
 }
 
-function abortClipSession(correlation) {
+function stopClipMic(s) {
+  if (!s || !s.micStream) return;
+  try {
+    for (const t of s.micStream.getTracks()) t.stop();
+  } catch {
+    /* ignore */
+  }
+}
+
+function abortClipSession(correlation, errMsg) {
   const s = clipSession;
   clipSession = null;
+  stopClipMic(s);
   if (s && s.recorder && s.recorder.state !== "inactive") {
     try {
       s.recorder.stop();
@@ -81,21 +100,12 @@ function abortClipSession(correlation) {
     }
   }
   if (correlation != null && correlation !== "") {
-    post("bodycam_clip_put_done", { correlation: String(correlation), ok: false, err: "aborted" });
+    post("bodycam_clip_put_done", { correlation: String(correlation), ok: false, err: errMsg || "aborted" });
   }
 }
 
-function startClipSession(d) {
+async function startClipSession(d) {
   abortClipSession(null);
-  const mime = pickRecorderMime();
-  if (!mime) {
-    post("bodycam_clip_put_done", {
-      correlation: d.correlation,
-      ok: false,
-      err: "MediaRecorder/WebM not supported in this client",
-    });
-    return;
-  }
   const canvas = document.createElement("canvas");
   canvas.width = 1280;
   canvas.height = 720;
@@ -104,19 +114,64 @@ function startClipSession(d) {
     post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: "no canvas context" });
     return;
   }
-  const fps = Math.max(1, Math.min(12, Number(d.fps) || 2));
-  const stream = canvas.captureStream(fps);
+
+  const fps = Math.max(1, Math.min(60, Number(d.fps) || 30));
+  const wantMic = !!d.includeMic && typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia;
+
+  let micStream = null;
+  if (wantMic) {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+        video: false,
+      });
+    } catch {
+      micStream = null;
+    }
+  }
+
+  const hasAudio = !!(micStream && micStream.getAudioTracks().length);
+  const mime = pickRecorderMime(hasAudio);
+  if (!mime) {
+    stopClipMic({ micStream });
+    post("bodycam_clip_put_done", {
+      correlation: d.correlation,
+      ok: false,
+      err: "MediaRecorder/WebM not supported in this client",
+    });
+    return;
+  }
+
+  const videoOnly = canvas.captureStream(fps);
+  const tracks = [...videoOnly.getVideoTracks()];
+  if (hasAudio) tracks.push(...micStream.getAudioTracks());
+  const merged = new MediaStream(tracks);
+
+  const recOpts = {
+    mimeType: mime,
+    videoBitsPerSecond: 6_000_000,
+  };
+  if (hasAudio) recOpts.audioBitsPerSecond = 128_000;
+
   let recorder;
   try {
-    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2_500_000 });
+    recorder = new MediaRecorder(merged, recOpts);
   } catch (err) {
+    stopClipMic({ micStream });
     post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: String(err) });
     return;
   }
+
   const chunks = [];
   recorder.ondataavailable = (ev) => {
     if (ev.data && ev.data.size) chunks.push(ev.data);
   };
+
   clipSession = {
     correlation: String(d.correlation),
     canvas,
@@ -125,12 +180,15 @@ function startClipSession(d) {
     chunks,
     url: d.url,
     mime,
+    micStream,
     startMs: Date.now(),
   };
+
   try {
     recorder.start(250);
   } catch (err) {
     clipSession = null;
+    stopClipMic({ micStream });
     post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: String(err) });
   }
 }
@@ -148,8 +206,7 @@ function pushClipFrame(d) {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   };
   img.onerror = () => {
-    post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: "frame decode failed" });
-    abortClipSession(null);
+    abortClipSession(d.correlation, "frame decode failed");
   };
   img.src = d.dataUrl;
 }
@@ -162,7 +219,7 @@ async function finalizeClipSession() {
   const durationSeconds = Math.max(1, Math.round(((Date.now() - s.startMs) / 1000) * 10) / 10);
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("recorder stop timeout")), 8000);
+      const timer = setTimeout(() => reject(new Error("recorder stop timeout")), 35_000);
       s.recorder.onstop = () => {
         clearTimeout(timer);
         resolve();
@@ -178,9 +235,11 @@ async function finalizeClipSession() {
       }
     });
   } catch (err) {
+    stopClipMic(s);
     post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: String(err) });
     return;
   }
+  stopClipMic(s);
   const baseMime = (s.mime || "video/webm").split(";")[0] || "video/webm";
   const blob = new Blob(s.chunks, { type: baseMime });
   if (!blob.size) {
