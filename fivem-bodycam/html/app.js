@@ -49,29 +49,32 @@ function formatDisplayCaptureErr(e) {
 async function acquireDisplayAudioStreamInternal() {
   const gm = navigator.mediaDevices?.getDisplayMedia;
   if (!gm) throw new Error("getDisplayMedia_unavailable");
-  const base = {
-    video: { width: { ideal: 480, max: 720 }, height: { ideal: 270, max: 480 }, frameRate: { max: 8 } },
-    audio: {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-    },
-  };
-  /* Do not pass `systemAudio: "include"` here: FiveM's CEF often throws NotAllowedError: Invalid state before
-     the picker opens. Plain constraints still show the Windows picker with "Share audio" on the monitor entry. */
-  const stream = await gm.call(navigator.mediaDevices, base);
-  /* Do not stop() display video immediately — on Chromium/CEF that can invalidate loopback audio ("Invalid state"). */
+  /* Minimal constraints: detailed video/audio constraint objects have triggered NotAllowedError / Invalid state
+     in FiveM CEF. Booleans still open the Windows picker with "Share audio" on the monitor row. */
+  const stream = await gm.call(navigator.mediaDevices, { video: true, audio: true });
+
+  const liveAudioTracks = () => stream.getAudioTracks().filter((t) => t.readyState === "live");
+
+  let aud = liveAudioTracks();
+  if (!aud.length) {
+    const deadline = performance.now() + 500;
+    while (!aud.length && performance.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      aud = liveAudioTracks();
+    }
+  }
+  if (!aud.length) {
+    for (const t of stream.getTracks()) t.stop();
+    throw new Error("no_system_audio_track");
+  }
+  /* Do not stop() display video immediately — on Chromium/CEF that can invalidate loopback audio ("Invalid state").
+     Wait until we know audio is live, then mute video tracks (still cheaper than full capture). */
   for (const vt of stream.getVideoTracks()) {
     try {
       vt.enabled = false;
     } catch {
       /* ignore */
     }
-  }
-  const aud = stream.getAudioTracks().filter((t) => t.readyState === "live");
-  if (!aud.length) {
-    for (const t of stream.getTracks()) t.stop();
-    throw new Error("no_system_audio_track");
   }
   return stream;
 }
@@ -81,7 +84,10 @@ async function acquireDisplayAudioStreamInternal() {
  * or Chromium revokes user activation and getDisplayMedia throws NotAllowedError / Invalid state.
  */
 function primeDisplayAudioFromUserGesture() {
-  stopCachedDisplayAudio();
+  /* Avoid stop() on a null cache; stopping an ended stream right before getDisplayMedia may upset some CEF builds. */
+  if (cachedDisplayAudioStream) {
+    stopCachedDisplayAudio();
+  }
   return acquireDisplayAudioStreamInternal()
     .then((stream) => {
       cachedDisplayAudioStream = stream;

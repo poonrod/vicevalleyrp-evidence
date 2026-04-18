@@ -107,7 +107,13 @@ Config.EnableClipRecordingMicrophone = true
 --   mic = microphone only (getUserMedia).
 --   display = Windows monitor / "Entire screen" loopback via browser screen share (game + default output, incl. typical Mumble/pma-voice to headphones).
 --   display_plus_mic = loopback + microphone mixed (recommended for officer radio + world).
+-- display* modes call getDisplayMedia inside FiveM NUI; many client builds throw NotAllowedError/Invalid state (CEF).
+-- Override without editing this file: server.cfg  setr bodycam_clip_audio_mode mic
 Config.ClipAudioCaptureMode = "display_plus_mic"
+local _clipAudioModeCv = GetConvar('bodycam_clip_audio_mode', '')
+if type(_clipAudioModeCv) == 'string' and _clipAudioModeCv:gsub('%s+', '') ~= '' then
+    Config.ClipAudioCaptureMode = _clipAudioModeCv:match('^%s*(.-)%s*$') or Config.ClipAudioCaptureMode
+end
 -- F8 console: run this command to open NUI and click "Allow monitor audio" once; choice is remembered (see README).
 Config.BodycamClipAudioConsoleCommand = "bodycamclipaudio"
 -- "voice" = echo/noise suppression (Discord-like). "ambient" = lighter processing so room/speaker

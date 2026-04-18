@@ -12,7 +12,11 @@ local cmd = rawCmd:match('^%s*(.-)%s*$') or ''
 if cmd ~= '' and clipAudioUsesDisplay() then
     RegisterCommand(cmd, function()
         SetNuiFocus(true, true)
-        SendNUIMessage({ type = 'bodycam_audio_console_setup_open' })
+        -- Let CEF apply focus before the overlay; immediate SendNUIMessage has correlated with getDisplayMedia failures.
+        CreateThread(function()
+            Wait(100)
+            SendNUIMessage({ type = 'bodycam_audio_console_setup_open' })
+        end)
     end, false)
 
     RegisterCommand(cmd .. '_clear', function()

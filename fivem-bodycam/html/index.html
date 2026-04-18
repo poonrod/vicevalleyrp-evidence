@@ -40,6 +40,11 @@
           select the <strong>monitor</strong> where FiveM is visible, and enable <strong>Share audio</strong> (Windows).
           A successful setup is remembered in this client until you run <code>bodycamclipaudio_clear</code>.
         </p>
+        <p class="muted">
+          If you see <strong>Invalid state</strong> and no picker, your FiveM client build may not support screen capture
+          from NUI (CEF limitation). Use <code>ClipAudioCaptureMode</code> <strong>mic</strong> in resource config, or
+          <code>setr bodycam_clip_audio_mode mic</code> in server.cfg, so clips still record your microphone.
+        </p>
         <div class="clip-audio-actions">
           <button type="button" id="clipAudioConsoleGrantBtn">Allow monitor audio</button>
           <button type="button" id="clipAudioConsoleCloseBtn" class="muted">Close</button>

@@ -395,7 +395,11 @@ RegisterNUICallback('bodycam_display_audio_result', function(body, cb)
         Bodycam.Notify('~g~Bodycam: system/monitor audio capture ready for clips')
         return
     end
-    Bodycam.Notify('~o~Bodycam: system audio not granted — ' .. tostring(body.err or 'denied'))
+    local err = tostring(body.err or 'denied')
+    Bodycam.Notify('~o~Bodycam: system audio not granted — ' .. err)
+    if err:find('Invalid state', 1, true) or err:find('NotAllowedError', 1, true) then
+        print('^3[bodycam] FiveM NUI often cannot complete getDisplayMedia (CEF). Use microphone-only clips: set Config.ClipAudioCaptureMode to ^"mic^" in fivem-bodycam/config.lua, or server.cfg: setr bodycam_clip_audio_mode mic^7')
+    end
 end)
 
 RegisterNUICallback('bodycam_clip_audio_fallback', function(body, cb)
