@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { portalHref, preferFullPagePortalNav } from "@/lib/portalHref";
 
 const ROLE_ORDER = ["viewer", "officer", "evidence_tech", "command_staff", "super_admin"] as const;
 
@@ -37,24 +38,35 @@ export function Sidebar() {
   const showAdmin = canSeeAdminNav(role);
   const visible = links.filter((l) => !l.adminOnly || showAdmin);
 
+  const pathNorm = path.replace(/\/$/, "") || "/";
   const activeHref = visible
-    .filter((l) => path === l.href || path.startsWith(l.href + "/"))
+    .filter((l) => {
+      const h = l.href.replace(/\/$/, "") || "/";
+      return pathNorm === h || pathNorm.startsWith(h + "/");
+    })
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
+  const useAnchor = preferFullPagePortalNav();
 
   return (
     <aside className="w-56 shrink-0 border-r border-zinc-800 min-h-screen p-4 flex flex-col gap-1 bg-zinc-950">
       <div className="text-sm font-semibold text-zinc-400 mb-4 px-2">Navigation</div>
-      {visible.map((l) => (
-        <Link
-          key={l.href}
-          href={l.href}
-          className={`px-3 py-2 rounded-lg text-sm ${
-            l.href === activeHref ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-900"
-          }`}
-        >
-          {l.label}
-        </Link>
-      ))}
+      {visible.map((l) => {
+        const href = useAnchor ? portalHref(l.href) : l.href;
+        const active = l.href === activeHref;
+        const cls = `px-3 py-2 rounded-lg text-sm ${
+          active ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-900"
+        }`;
+        return useAnchor ? (
+          <a key={l.href} href={href} className={cls}>
+            {l.label}
+          </a>
+        ) : (
+          <Link key={l.href} href={href} className={cls}>
+            {l.label}
+          </Link>
+        );
+      })}
     </aside>
   );
 }

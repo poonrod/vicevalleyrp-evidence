@@ -7,6 +7,7 @@ import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { canDeleteEvidence, type GlobalRole } from "@vicevalley/shared";
+import { portalHref, preferFullPagePortalNav } from "@/lib/portalHref";
 
 type Row = {
   id: string;
@@ -47,6 +48,7 @@ export default function EvidenceListPage() {
   }, [router, q]);
 
   const showDelete = role != null && canDeleteEvidence(role);
+  const fullNav = preferFullPagePortalNav();
 
   async function deleteRow(id: string, label: string) {
     if (!confirm(`Delete evidence “${label}”? This cannot be undone.`)) return;
@@ -94,9 +96,21 @@ export default function EvidenceListPage() {
                 {rows.map((r) => (
                   <tr key={r.id} className="border-b border-zinc-800/80 hover:bg-zinc-900/50">
                     <td className="p-3">
-                      <Link href={`/evidence/view?id=${encodeURIComponent(r.id)}`} className="text-blue-400 hover:underline">
-                        {r.fileName}
-                      </Link>
+                      {fullNav ? (
+                        <a
+                          href={portalHref(`/evidence/view?id=${encodeURIComponent(r.id)}`)}
+                          className="text-blue-400 hover:underline"
+                        >
+                          {r.fileName}
+                        </a>
+                      ) : (
+                        <Link
+                          href={`/evidence/view?id=${encodeURIComponent(r.id)}`}
+                          className="text-blue-400 hover:underline"
+                        >
+                          {r.fileName}
+                        </Link>
+                      )}
                     </td>
                     <td className="p-3 text-zinc-400">{r.captureType}</td>
                     <td className="p-3">{r.caseNumber ?? "—"}</td>

@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { portalHref, preferFullPagePortalNav } from "@/lib/portalHref";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -43,6 +44,8 @@ export default function DashboardPage() {
     );
   }
 
+  const fullNav = preferFullPagePortalNav();
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
@@ -57,18 +60,37 @@ export default function DashboardPage() {
           <div className="glass p-5">
             <div className="text-zinc-500 text-sm">Evidence records</div>
             <div className="text-3xl font-semibold mt-1">{evidence?.total ?? "—"}</div>
-            <Link href="/evidence" className="text-blue-400 text-sm mt-3 inline-block hover:underline">
-              View all
-            </Link>
+            {fullNav ? (
+              <a href={portalHref("/evidence")} className="text-blue-400 text-sm mt-3 inline-block hover:underline">
+                View all
+              </a>
+            ) : (
+              <Link href="/evidence" className="text-blue-400 text-sm mt-3 inline-block hover:underline">
+                View all
+              </Link>
+            )}
           </div>
           <div className="glass p-5">
             <div className="text-zinc-500 text-sm">Quick actions</div>
-            <Link href="/incidents" className="block mt-3 text-blue-400 hover:underline">
-              Incidents
-            </Link>
-            <Link href="/admin" className="block mt-2 text-blue-400 hover:underline">
-              Admin
-            </Link>
+            {fullNav ? (
+              <>
+                <a href={portalHref("/incidents")} className="block mt-3 text-blue-400 hover:underline">
+                  Incidents
+                </a>
+                <a href={portalHref("/admin")} className="block mt-2 text-blue-400 hover:underline">
+                  Admin
+                </a>
+              </>
+            ) : (
+              <>
+                <Link href="/incidents" className="block mt-3 text-blue-400 hover:underline">
+                  Incidents
+                </Link>
+                <Link href="/admin" className="block mt-2 text-blue-400 hover:underline">
+                  Admin
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

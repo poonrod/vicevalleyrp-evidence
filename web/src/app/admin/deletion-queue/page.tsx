@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { portalHref, preferFullPagePortalNav } from "@/lib/portalHref";
 
 type Row = { id: string; fileName: string; scheduledDeletionAt: string | null };
 
@@ -19,6 +20,8 @@ export default function DeletionQueuePage() {
       .catch((e) => handleApiAuthNavigation(router, e));
   }, [router]);
 
+  const fullNav = preferFullPagePortalNav();
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
@@ -27,9 +30,18 @@ export default function DeletionQueuePage() {
         <div className="p-6 space-y-2">
           {items.map((i) => (
             <div key={i.id} className="glass p-3 flex justify-between text-sm">
-              <Link href={`/evidence/view?id=${encodeURIComponent(i.id)}`} className="text-blue-400 hover:underline">
-                {i.fileName}
-              </Link>
+              {fullNav ? (
+                <a
+                  href={portalHref(`/evidence/view?id=${encodeURIComponent(i.id)}`)}
+                  className="text-blue-400 hover:underline"
+                >
+                  {i.fileName}
+                </a>
+              ) : (
+                <Link href={`/evidence/view?id=${encodeURIComponent(i.id)}`} className="text-blue-400 hover:underline">
+                  {i.fileName}
+                </Link>
+              )}
               <span className="text-zinc-500">
                 {i.scheduledDeletionAt ? new Date(i.scheduledDeletionAt).toLocaleString() : "—"}
               </span>
