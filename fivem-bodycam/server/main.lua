@@ -31,6 +31,9 @@ RegisterNetEvent('bodycam:server:requestUpload', function(meta)
         videoTier = meta.videoTier,
     }, function(data, err)
         if err or not data then
+            if GetConvar('bodycam_debug', '0') == '1' then
+                print(('[bodycam] upload-url failed src=%s err=%s'):format(tostring(src), tostring(err)))
+            end
             TriggerClientEvent('bodycam:client:notify', src, '~r~Upload URL failed')
             return
         end
@@ -61,6 +64,9 @@ RegisterNetEvent('bodycam:server:completeUpload', function(payload)
 
     Api.CompleteEvidence(src, payload, function(data, err)
         if err then
+            if GetConvar('bodycam_debug', '0') == '1' then
+                print(('[bodycam] complete failed src=%s err=%s'):format(tostring(src), tostring(err)))
+            end
             TriggerClientEvent('bodycam:client:notify', src, '~r~Complete failed')
             return
         end
