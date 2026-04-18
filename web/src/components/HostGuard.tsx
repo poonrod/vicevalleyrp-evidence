@@ -15,7 +15,10 @@ export function HostGuard({ children }: { children: React.ReactNode }) {
     if (!API || !PORTAL) return;
     try {
       const apiOrigin = new URL(API.startsWith("http") ? API : `https://${API}`).origin;
+      const portalOrigin = new URL(PORTAL.startsWith("http") ? PORTAL : `https://${PORTAL}`).origin;
       const portalBase = PORTAL.replace(/\/+$/, "");
+      /** Never bounce when API env points at the portal (misconfig) — that would reload forever. */
+      if (apiOrigin === portalOrigin) return;
       if (window.location.origin === apiOrigin) {
         const rest = window.location.pathname + window.location.search + window.location.hash;
         window.location.replace(`${portalBase}${rest}`);

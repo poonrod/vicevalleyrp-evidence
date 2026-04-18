@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiHttpError, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
@@ -14,6 +14,8 @@ export default function EvidenceDetailClient() {
   const rawId = searchParams.get("id");
   const id = rawId && EVIDENCE_ID_RE.test(rawId) ? rawId : null;
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const [ev, setEv] = useState<Record<string, unknown> | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -30,22 +32,25 @@ export default function EvidenceDetailClient() {
         setCaseNum((r.evidence.caseNumber as string) ?? "");
       })
       .catch((e) => {
-        if (handleApiAuthNavigation(router, e)) return;
+        if (handleApiAuthNavigation(routerRef.current, e)) return;
         const msg =
           e instanceof ApiHttpError ? e.message || `Request failed (${e.status})` : "Could not load this record.";
         setLoadError(msg);
       });
-  }, [id, router]);
+  }, [id]);
 
   useEffect(() => {
-    if (!id) {
-      router.replace("/evidence");
-      return;
+    if (!rawId || !EVIDENCE_ID_RE.test(rawId)) {
+      routerRef.current.replace("/evidence");
     }
+  }, [rawId]);
+
+  useEffect(() => {
+    if (!id) return;
     setEv(null);
     setLoadError(null);
     load();
-  }, [id, router, load]);
+  }, [id, load]);
 
   if (!id) {
     return null;

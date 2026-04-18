@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     portalBase && shouldEmitPortalBaseHref(portalUrl, apiUrl) ? `${portalBase}/` : "";
   const hostGuardEarly =
     apiUrl && portalUrl
-      ? `void function(){try{var p=${JSON.stringify(portalUrl)};var a=${JSON.stringify(apiUrl)};var ao=new URL(/^https?:\\/\\//.test(a)?a:"https://"+a).origin;if(location.origin===ao){location.replace(p.replace(/\\/+$/, "")+location.pathname+location.search+location.hash);}}catch(e){}}();`
+      ? `void function(){try{var p=${JSON.stringify(portalUrl)};var a=${JSON.stringify(apiUrl)};var ao=new URL(/^https?:\\/\\//.test(a)?a:"https://"+a).origin;var po=new URL(/^https?:\\/\\//.test(p)?p:"https://"+p).origin;if(ao===po)return;if(location.origin===ao){location.replace(p.replace(/\\/+$/, "")+location.pathname+location.search+location.hash);}}catch(e){}}();`
       : "";
 
   return (
