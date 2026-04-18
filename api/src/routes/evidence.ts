@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
 import {
@@ -17,8 +18,17 @@ import { createStorageProvider } from "../modules/storage/factory";
 import { env } from "../config/env";
 import { loadRetentionSettings } from "../modules/retention/loadSettings";
 import { computeRetentionClass, computeScheduledDeletionAt } from "../modules/retention/compute";
+import { isStrictEvidencePermissions } from "../lib/systemFlags";
+import type { EvidenceItem, User } from "@prisma/client";
 
 export const evidenceRouter = Router();
+
+function canManagePublicShare(user: User, ev: EvidenceItem): boolean {
+  if (ev.officerDiscordId === user.discordId) return true;
+  const order = ["viewer", "officer", "evidence_tech", "command_staff", "super_admin"] as const;
+  const idx = order.indexOf(user.globalRole as (typeof order)[number]);
+  return idx >= order.indexOf("evidence_tech");
+}
 evidenceRouter.use(loadSessionUser);
 
 evidenceRouter.post("/upload-url", requireAuth, async (req, res) => {
@@ -28,6 +38,18 @@ evidenceRouter.post("/upload-url", requireAuth, async (req, res) => {
     res.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Bad request";
+    try {
+      await prisma.failedUploadLog.create({
+        data: {
+          source: "portal_upload_url",
+          officerDiscordId: req.currentUser?.discordId ?? null,
+          errorMessage: msg,
+          payload: req.body as object,
+        },
+      });
+    } catch {
+      /* ignore if table missing during migration */
+    }
     res.status(400).json({ error: msg });
   }
 });
@@ -39,6 +61,18 @@ evidenceRouter.post("/complete", requireAuth, async (req, res) => {
     res.json({ evidence: ev });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Bad request";
+    try {
+      await prisma.failedUploadLog.create({
+        data: {
+          source: "portal_complete",
+          officerDiscordId: req.currentUser?.discordId ?? null,
+          errorMessage: msg,
+          payload: req.body as object,
+        },
+      });
+    } catch {
+      /* ignore if table missing during migration */
+    }
     res.status(400).json({ error: msg });
   }
 });
@@ -57,8 +91,14 @@ const listQuery = z.object({
 evidenceRouter.get("/", requireAuth, async (req, res) => {
   const q = listQuery.parse(req.query);
   const where: Record<string, unknown> = { isDeleted: false };
+  const strict = await isStrictEvidencePermissions();
+  const role = req.currentUser!.globalRole;
+  if (strict && (role === "officer" || role === "viewer")) {
+    where.officerDiscordId = req.currentUser!.discordId;
+  } else if (q.officerDiscordId) {
+    where.officerDiscordId = q.officerDiscordId;
+  }
   if (q.caseNumber) where.caseNumber = q.caseNumber;
-  if (q.officerDiscordId) where.officerDiscordId = q.officerDiscordId;
   if (q.captureType) where.captureType = q.captureType;
   if (q.retentionClass) where.retentionClass = q.retentionClass;
   if (q.videoTier) where.videoTier = q.videoTier;
@@ -104,6 +144,93 @@ evidenceRouter.get("/:id/download-url", requireAuth, async (req, res) => {
     },
   });
   res.json(url);
+});
+
+evidenceRouter.get("/:id/shares", requireAuth, async (req, res) => {
+  const ev = await prisma.evidenceItem.findFirst({
+    where: { id: String(req.params.id), isDeleted: false },
+  });
+  if (!ev) return res.status(404).json({ error: "Not found" });
+  if (!canManagePublicShare(req.currentUser!, ev)) return res.status(403).json({ error: "Forbidden" });
+  const shares = await prisma.evidenceShare.findMany({
+    where: { evidenceId: ev.id, revokedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, token: true, expiresAt: true, createdAt: true },
+  });
+  res.json({ shares });
+});
+
+evidenceRouter.post("/:id/share", requireAuth, async (req, res) => {
+  const body = z
+    .object({
+      neverExpires: z.boolean(),
+      expiresAt: z.string().optional(),
+    })
+    .parse(req.body);
+
+  const ev = await prisma.evidenceItem.findFirst({
+    where: { id: String(req.params.id), isDeleted: false },
+  });
+  if (!ev) return res.status(404).json({ error: "Not found" });
+  if (!canManagePublicShare(req.currentUser!, ev)) return res.status(403).json({ error: "Forbidden" });
+  if (!ev.mimeType.startsWith("video/")) {
+    return res.status(400).json({ error: "Only video evidence can have a public watch link" });
+  }
+
+  let expiresAt: Date | null = null;
+  if (!body.neverExpires) {
+    if (!body.expiresAt) return res.status(400).json({ error: "expiresAt is required unless neverExpires is true" });
+    const d = new Date(body.expiresAt);
+    if (Number.isNaN(d.getTime())) return res.status(400).json({ error: "Invalid expiresAt" });
+    if (d.getTime() <= Date.now()) return res.status(400).json({ error: "expiresAt must be in the future" });
+    expiresAt = d;
+  }
+
+  const token = randomBytes(24).toString("hex");
+  const share = await prisma.evidenceShare.create({
+    data: {
+      evidenceId: ev.id,
+      token,
+      expiresAt,
+      createdByUserId: req.currentUser!.id,
+    },
+  });
+  await prisma.chainOfCustodyEntry.create({
+    data: {
+      evidenceId: ev.id,
+      actorUserId: req.currentUser!.id,
+      action: "share_link_created",
+      details: JSON.stringify({ shareId: share.id, expiresAt: expiresAt?.toISOString() ?? null }),
+    },
+  });
+  res.json({ share });
+});
+
+evidenceRouter.delete("/:id/share/:shareId", requireAuth, async (req, res) => {
+  const ev = await prisma.evidenceItem.findFirst({
+    where: { id: String(req.params.id), isDeleted: false },
+  });
+  if (!ev) return res.status(404).json({ error: "Not found" });
+  if (!canManagePublicShare(req.currentUser!, ev)) return res.status(403).json({ error: "Forbidden" });
+
+  const share = await prisma.evidenceShare.findFirst({
+    where: { id: String(req.params.shareId), evidenceId: ev.id, revokedAt: null },
+  });
+  if (!share) return res.status(404).json({ error: "Not found" });
+
+  await prisma.evidenceShare.update({
+    where: { id: share.id },
+    data: { revokedAt: new Date() },
+  });
+  await prisma.chainOfCustodyEntry.create({
+    data: {
+      evidenceId: ev.id,
+      actorUserId: req.currentUser!.id,
+      action: "share_link_revoked",
+      details: JSON.stringify({ shareId: share.id }),
+    },
+  });
+  res.json({ ok: true });
 });
 
 evidenceRouter.get("/:id/audit", requireAuth, async (req, res) => {

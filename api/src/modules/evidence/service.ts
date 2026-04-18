@@ -4,6 +4,7 @@ import { env } from "../../config/env";
 import { createStorageProvider } from "../storage/factory";
 import { evidenceObjectKey, extensionFromFileName, newEvidenceId } from "../storage/paths";
 import { loadRetentionSettings } from "../retention/loadSettings";
+import { getSystemFlags } from "../../lib/systemFlags";
 import { computeRetentionClass, computeScheduledDeletionAt } from "../retention/compute";
 import { assertAllowedMime } from "./mime";
 import type { z } from "zod";
@@ -92,6 +93,15 @@ export async function completeEvidenceForUser(user: User, body: CompleteBody & {
   const exists = await storage.objectExists(body.storageKey);
   if (!exists) {
     throw new Error("Object not found in storage; upload may have failed");
+  }
+
+  const flags = await getSystemFlags();
+  if (flags.ENABLE_HASH_CHECK) {
+    const mime = (body.mimeType || "").toLowerCase();
+    const needsHash = mime.startsWith("video/");
+    if (needsHash && (!body.sha256 || !String(body.sha256).trim())) {
+      throw new Error("SHA-256 is required for video evidence when ENABLE_HASH_CHECK is enabled");
+    }
   }
 
   const officer = await prisma.officerProfile.findUnique({ where: { userId: user.id } });

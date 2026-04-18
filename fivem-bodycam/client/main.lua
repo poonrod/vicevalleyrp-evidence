@@ -46,6 +46,10 @@ function Bodycam.SetActive(on, sourceKind)
         auto = sourceKind and sourceKind:find('auto') ~= nil,
     })
 
+    if on and Config.EnableClipMode and Config.EnableClipRecordingMicrophone ~= false then
+        SendNUIMessage({ type = 'bodycam_mic_warmup' })
+    end
+
     if Config.EnableBodycamSounds and Bodycam.personal.sound then
         if on and (sourceKind ~= 'auto' or Config.PlaySoundOnAutoActivation) then
             NuiAudio.Play(Config.ActivationSoundFile)

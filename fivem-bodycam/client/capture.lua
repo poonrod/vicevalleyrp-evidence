@@ -14,6 +14,9 @@ local function completeAfterPut(cid, body)
     if body.ok ~= true then
         local err = body.err or 'unknown'
         print(('[bodycam] presigned PUT failed: %s'):format(tostring(err)))
+        if GetConvar('bodycam_upload_debug', '0') == '1' then
+            print(('[bodycam][upload_debug] PUT result: %s'):format(json.encode(body):sub(1, 800)))
+        end
         if type(err) == 'string' and #err > 0 then
             Bodycam.Notify('~r~Upload failed: ' .. err:sub(1, 100))
         else
@@ -80,7 +83,14 @@ local function completeAfterClipPut(cid, body)
     if body.ok ~= true then
         local err = body.err or 'unknown'
         print(('[bodycam] clip PUT failed: %s'):format(tostring(err)))
-        Bodycam.Notify('~r~Clip upload failed')
+        if GetConvar('bodycam_upload_debug', '0') == '1' then
+            print(('[bodycam][upload_debug] clip PUT result: %s'):format(json.encode(body):sub(1, 800)))
+        end
+        if type(err) == 'string' and err:find('CLIP_TOO_SHORT', 1, true) then
+            Bodycam.Notify('~o~Clip not saved: shorter than ' .. tostring(Config.ClipMinUploadSeconds or 5) .. ' seconds')
+        else
+            Bodycam.Notify('~r~Clip upload failed')
+        end
         return
     end
 
@@ -160,7 +170,7 @@ local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes)
             dataUrl = dataUrl,
         })
         if i >= maxFrames - 1 then
-            Citizen.SetTimeout(280, function()
+            Citizen.SetTimeout(520, function()
                 SendNUIMessage({ type = 'bodycam_clip_end', correlation = cid })
             end)
         else
@@ -198,7 +208,9 @@ local function startWebmClipFromPresign(data)
     }
     Bodycam.clipRecording = true
 
-    local wantFp = Config.UseFirstPersonForSnapshots and Bodycam.personal.firstPerson
+    -- Clip mode: do **not** toggle first-person every frame (causes 1st/3rd flicker when bodycam turns off).
+    -- Single snapshots still use first-person framing when configured.
+    local wantFpClip = false
     local includeMic = Config.EnableClipRecordingMicrophone ~= false
 
     local iso = Utils.NowIsoUtc()
@@ -216,10 +228,11 @@ local function startWebmClipFromPresign(data)
         includeMic = includeMic,
         watermarkTime = wmTime,
         watermarkLine2 = wmLine2,
+        minUploadSeconds = tonumber(Config.ClipMinUploadSeconds) or 5,
     })
 
     Citizen.SetTimeout(80, function()
-        captureClipFrame(0, maxFrames, cid, data, wantFp, gap, shotRes)
+        captureClipFrame(0, maxFrames, cid, data, wantFpClip, gap, shotRes)
     end)
 end
 
@@ -282,7 +295,7 @@ end)
 
 function CaptureClient.TryFinalizeWebmClip(sessionDurMs)
     if Bodycam.clipRecording then return end
-    local capSec = math.min(Config.ShortClipMaxSeconds or 15, math.max(3, math.floor(sessionDurMs / 1000)))
+    local capSec = math.min(Config.ShortClipMaxSeconds or 15, math.max(5, math.floor(sessionDurMs / 1000)))
     TriggerServerEvent('bodycam:server:requestUpload', {
         fileName = 'bodycam_clip.webm',
         mimeType = 'video/webm',
@@ -324,6 +337,17 @@ RegisterCommand(Config.ToggleCommandName, function()
     if not Config.EnableToggleCommand then return end
     Bodycam.ToggleManual()
 end, false)
+
+RegisterNUICallback('bodycam_mic_warmup_result', function(body, cb)
+    cb({})
+    if type(body) ~= 'table' then return end
+    if body.ok == true then
+        print('^2[bodycam] Microphone allowed — clip audio will be recorded when supported.^7')
+        return
+    end
+    print('^3[bodycam] Microphone not available: ' .. tostring(body.err or 'denied') .. '^7')
+    print('^3[bodycam] Open the bodycam NUI (F1 pause menu / settings) and allow the browser microphone prompt if you want audio on clips.^7')
+end)
 
 RegisterCommand('bcamsnap', function()
     if not Bodycam.active then

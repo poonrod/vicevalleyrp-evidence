@@ -43,6 +43,8 @@ model User {
   accessLogs            AccessLog[]
   retentionUpdates      RetentionPolicySetting[] @relation("RetentionUpdatedBy")
   adminAuditLogs        AdminAuditLog[]
+  auditLogs             AuditLog[]
+  evidenceSharesCreated EvidenceShare[] @relation("EvidenceShareCreator")
 }
 
 model OfficerProfile {
@@ -84,6 +86,7 @@ model Incident {
   updatedAt       DateTime @updatedAt
 
   evidence EvidenceItem[]
+  links    IncidentLink[]
 }
 
 model EvidenceItem {
@@ -160,6 +163,9 @@ model EvidenceItem {
   notes                   EvidenceNote[]
   chainEntries            ChainOfCustodyEntry[]
   accessLogs              AccessLog[]
+  flags                   EvidenceFlag[]
+  incidentLinks           IncidentLink[]
+  shareLinks              EvidenceShare[]
 
   @@index([officerDiscordId])
   @@index([caseNumber])
@@ -232,6 +238,86 @@ model AdminAuditLog {
   details     Json?
   ipAddress   String?
   createdAt   DateTime @default(now())
+}
+
+/// Developer panel and sensitive operations (user_id, discord_id, action, payload, IP).
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  discordId  String?
+  action     String
+  payload    Json?
+  ipAddress  String?
+  userAgent  String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([discordId])
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model FailedUploadLog {
+  id               String   @id @default(uuid())
+  source           String
+  officerDiscordId String?
+  errorMessage     String?  @db.Text
+  payload          Json?
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("failed_upload_logs")
+}
+
+model EvidenceFlag {
+  id         String       @id @default(uuid())
+  evidenceId String
+  evidence   EvidenceItem @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  flagKey    String
+  flagValue  String?
+  createdAt  DateTime     @default(now())
+
+  @@unique([evidenceId, flagKey])
+  @@map("evidence_flags")
+}
+
+model EvidenceShare {
+  id               String       @id @default(uuid())
+  evidenceId       String
+  evidence         EvidenceItem @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  token            String       @unique
+  expiresAt        DateTime?
+  createdByUserId  String
+  createdBy        User         @relation("EvidenceShareCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  revokedAt        DateTime?
+  createdAt        DateTime     @default(now())
+
+  @@index([evidenceId])
+  @@map("evidence_shares")
+}
+
+model IncidentLink {
+  id                 String        @id @default(uuid())
+  incidentBusinessId String
+  incident           Incident      @relation(fields: [incidentBusinessId], references: [incidentId], onDelete: Cascade)
+  evidenceId         String?
+  evidence           EvidenceItem? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  linkType           String        @default("reference")
+  meta               Json?
+  createdAt          DateTime      @default(now())
+
+  @@index([incidentBusinessId])
+  @@index([evidenceId])
+  @@map("incident_links")
 }
 
 /// express-session backing store (shared across Node workers; replaces MemoryStore)

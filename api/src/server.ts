@@ -10,7 +10,9 @@ import { authRouter } from "./routes/auth";
 import { evidenceRouter } from "./routes/evidence";
 import { incidentsRouter } from "./routes/incidents";
 import { adminRouter } from "./routes/admin";
+import { developerRouter } from "./routes/developer";
 import { internalFivemRouter } from "./routes/internalFivem";
+import { publicShareRouter } from "./routes/publicShare";
 import { startDeletionWorker } from "./worker/deletionWorker";
 
 const app = express();
@@ -122,10 +124,13 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
+app.use("/public", publicShareRouter);
+
 app.use("/auth", authRouter);
 app.use("/evidence", evidenceRouter);
 app.use("/incidents", incidentsRouter);
 app.use("/admin", adminRouter);
+app.use("/developer", developerRouter);
 app.use("/internal/fivem", internalFivemRouter);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

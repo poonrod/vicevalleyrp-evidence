@@ -5,6 +5,26 @@ import { issueUploadUrlForFivem, completeEvidenceForFivem } from "../modules/evi
 import { prisma } from "../lib/prisma";
 import { z } from "zod";
 
+async function logFivemUploadFailure(
+  source: string,
+  officerDiscordId: string | undefined,
+  errorMessage: string,
+  payload: unknown
+): Promise<void> {
+  try {
+    await prisma.failedUploadLog.create({
+      data: {
+        source,
+        officerDiscordId: officerDiscordId ?? null,
+        errorMessage,
+        payload: payload as object,
+      },
+    });
+  } catch (e) {
+    console.error("[internalFivem] failed_upload_logs insert", e);
+  }
+}
+
 export const internalFivemRouter = Router();
 internalFivemRouter.use(requireFivemSecret);
 
@@ -14,23 +34,41 @@ internalFivemRouter.get("/ping", (_req, res) => {
 });
 
 internalFivemRouter.post("/evidence/upload-url", async (req, res) => {
+  let body: z.infer<typeof fivemUploadUrlSchema>;
   try {
-    const body = fivemUploadUrlSchema.parse(req.body);
+    body = fivemUploadUrlSchema.parse(req.body);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Bad request";
+    const raw = req.body as { officerDiscordId?: string };
+    await logFivemUploadFailure("fivem_upload_url", raw?.officerDiscordId, msg, req.body);
+    return res.status(400).json({ error: msg });
+  }
+  try {
     const result = await issueUploadUrlForFivem(body);
     res.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Bad request";
+    await logFivemUploadFailure("fivem_upload_url", body.officerDiscordId, msg, req.body);
     res.status(400).json({ error: msg });
   }
 });
 
 internalFivemRouter.post("/evidence/complete", async (req, res) => {
+  let body: z.infer<typeof fivemCompleteSchema>;
   try {
-    const body = fivemCompleteSchema.parse(req.body);
+    body = fivemCompleteSchema.parse(req.body);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Bad request";
+    const raw = req.body as { officerDiscordId?: string };
+    await logFivemUploadFailure("fivem_complete", raw?.officerDiscordId, msg, req.body);
+    return res.status(400).json({ error: msg });
+  }
+  try {
     const ev = await completeEvidenceForFivem(body);
     res.json({ evidence: ev });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Bad request";
+    await logFivemUploadFailure("fivem_complete", body.officerDiscordId, msg, req.body);
     res.status(400).json({ error: msg });
   }
 });

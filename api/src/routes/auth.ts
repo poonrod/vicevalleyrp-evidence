@@ -8,6 +8,7 @@ import {
 } from "../lib/discordOAuthCodeReplayGuard";
 import { prisma } from "../lib/prisma";
 import { loadSessionUser, requireAuth } from "../middleware/sessionUser";
+import { isDeveloperDiscordId } from "../config/developers";
 
 export const authRouter = Router();
 
@@ -344,5 +345,8 @@ authRouter.post("/logout", (req, res) => {
 });
 
 authRouter.get("/me", requireAuth, async (req, res) => {
-  res.json({ user: req.currentUser });
+  res.json({
+    user: req.currentUser,
+    isDeveloper: isDeveloperDiscordId(req.currentUser!.discordId),
+  });
 });

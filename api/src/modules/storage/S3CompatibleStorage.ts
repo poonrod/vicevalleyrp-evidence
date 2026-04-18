@@ -4,8 +4,10 @@ import {
   DeleteObjectCommand,
   PutObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createHash } from "crypto";
 import type { StorageProvider, PresignedResult } from "./StorageProvider";
 
 export class S3CompatibleStorage implements StorageProvider {
@@ -97,5 +99,48 @@ export class S3CompatibleStorage implements StorageProvider {
     } catch {
       return false;
     }
+  }
+
+  async listObjectKeys(params: {
+    prefix: string;
+    maxKeys: number;
+    continuationToken?: string;
+  }): Promise<{ keys: string[]; nextContinuationToken?: string }> {
+    const out = await this.client.send(
+      new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: params.prefix,
+        MaxKeys: Math.min(1000, Math.max(1, params.maxKeys)),
+        ContinuationToken: params.continuationToken,
+      })
+    );
+    const keys = (out.Contents ?? []).map((c) => c.Key).filter((k): k is string => !!k);
+    return {
+      keys,
+      nextContinuationToken: out.IsTruncated ? out.NextContinuationToken : undefined,
+    };
+  }
+
+  async computeObjectSha256(key: string): Promise<string | null> {
+    const head = await this.client.send(
+      new HeadObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      })
+    );
+    const size = head.ContentLength ?? 0;
+    const maxBytes = 400 * 1024 * 1024;
+    if (size > maxBytes) return null;
+
+    const out = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      })
+    );
+    const body = out.Body;
+    if (!body) return null;
+    const bytes = await body.transformToByteArray();
+    return createHash("sha256").update(Buffer.from(bytes)).digest("hex");
   }
 }

@@ -15,7 +15,9 @@ function canSeeAdminNav(role: string | null): boolean {
   return idx >= min;
 }
 
-const links = [
+type NavLink = { href: string; label: string; adminOnly: boolean; developerOnly?: boolean };
+
+const links: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", adminOnly: false },
   { href: "/evidence", label: "Evidence", adminOnly: false },
   { href: "/incidents", label: "Incidents", adminOnly: false },
@@ -23,20 +25,33 @@ const links = [
   { href: "/admin/retention", label: "Retention", adminOnly: true },
   { href: "/admin/deletion-queue", label: "Deletion queue", adminOnly: true },
   { href: "/admin/video-policy", label: "Video policy", adminOnly: true },
+  { href: "/developer", label: "Developer", adminOnly: false, developerOnly: true },
 ];
 
 export function Sidebar() {
   const path = usePathname();
   const [role, setRole] = useState<string | null>(null);
 
+  const [isDeveloper, setIsDeveloper] = useState(false);
+
   useEffect(() => {
-    api<{ user: { globalRole: string } }>("/auth/me")
-      .then((r) => setRole(r.user.globalRole))
-      .catch(() => setRole(null));
+    api<{ user: { globalRole: string }; isDeveloper?: boolean }>("/auth/me")
+      .then((r) => {
+        setRole(r.user.globalRole);
+        setIsDeveloper(!!r.isDeveloper);
+      })
+      .catch(() => {
+        setRole(null);
+        setIsDeveloper(false);
+      });
   }, []);
 
   const showAdmin = canSeeAdminNav(role);
-  const visible = links.filter((l) => !l.adminOnly || showAdmin);
+  const visible = links.filter((l) => {
+    if (l.developerOnly) return isDeveloper;
+    if (l.adminOnly && !showAdmin) return false;
+    return true;
+  });
 
   const pathNorm = path.replace(/\/$/, "") || "/";
   const activeHref = visible

@@ -28,6 +28,9 @@ window.addEventListener("message", (e) => {
   if (d.type === "bodycam_presigned_put") {
     void runPresignedPut(d);
   }
+  if (d.type === "bodycam_mic_warmup") {
+    void warmUpMicrophone();
+  }
   if (d.type === "bodycam_clip_begin") {
     void startClipSession(d);
   }
@@ -61,16 +64,46 @@ function resourceName() {
 /** Short WebM bodycam clip: frames from Lua → canvas → MediaRecorder → presigned PUT. */
 let clipSession = null;
 
+async function warmUpMicrophone() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    post("bodycam_mic_warmup_result", { ok: false, err: "getUserMedia_unavailable" });
+    return;
+  }
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      video: false,
+    });
+    for (const t of s.getTracks()) t.stop();
+    post("bodycam_mic_warmup_result", { ok: true });
+  } catch (e) {
+    post("bodycam_mic_warmup_result", { ok: false, err: String(e?.name || e) });
+  }
+}
+
 function loadClipWatermarkLogo() {
   return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    try {
-      img.src = new URL("overlay/axon-delta-gold.svg", window.location.href).href;
-    } catch {
-      resolve(null);
-    }
+    const tryPng = () => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => trySvg();
+      try {
+        img.src = new URL("overlay/axon-delta-gold.png", window.location.href).href;
+      } catch {
+        trySvg();
+      }
+    };
+    const trySvg = () => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      try {
+        img.src = new URL("overlay/axon-delta-gold.svg", window.location.href).href;
+      } catch {
+        resolve(null);
+      }
+    };
+    tryPng();
   });
 }
 
@@ -87,12 +120,14 @@ function drawBodycamWatermark(ctx, s, cw) {
   const tw1 = ctx.measureText(line1).width;
   const tw2 = ctx.measureText(line2).width;
   const textW = Math.max(tw1, tw2);
-  const logoW = Math.round(fontPx * 3.25);
+  const logoW = Math.round(fontPx * 4.1);
   let logoH = logoW;
   if (s.logo && s.logo.complete && s.logo.naturalWidth) {
     logoH = Math.round((logoW * s.logo.naturalHeight) / s.logo.naturalWidth);
   }
-  const x = pad;
+  const gapTextLogo = pad * 0.55;
+  const blockW = textW + gapTextLogo + logoW;
+  const xText = cw - pad - blockW;
   const y = pad;
   const drawLine = (txt, ly) => {
     ctx.lineJoin = "round";
@@ -101,14 +136,14 @@ function drawBodycamWatermark(ctx, s, cw) {
     ctx.shadowColor = "rgba(0,0,0,0.8)";
     ctx.shadowBlur = Math.max(2, fontPx * 0.14);
     ctx.fillStyle = "rgba(12,12,12,0.42)";
-    ctx.strokeText(txt, x, ly);
+    ctx.strokeText(txt, xText, ly);
     ctx.shadowBlur = 0;
-    ctx.fillText(txt, x, ly);
+    ctx.fillText(txt, xText, ly);
   };
   drawLine(line1, y);
   drawLine(line2, y + fontPx * 1.22);
   if (s.logo && s.logo.complete && s.logo.naturalWidth) {
-    const lx = x + textW + pad * 0.45;
+    const lx = xText + textW + gapTextLogo;
     const ly = y - fontPx * 0.08;
     ctx.drawImage(s.logo, lx, ly, logoW, logoH);
   }
@@ -251,6 +286,7 @@ async function startClipSession(d) {
     wmTime,
     wmLine2,
     logo,
+    minUploadSeconds: Math.max(1, Math.min(120, Number(d.minUploadSeconds) || 5)),
   };
 
   try {
@@ -285,8 +321,26 @@ async function finalizeClipSession() {
   const s = clipSession;
   if (!s) return;
   clipSession = null;
-  await new Promise((r) => setTimeout(r, 200));
-  const durationSeconds = Math.max(1, Math.round(((Date.now() - s.startMs) / 1000) * 10) / 10);
+  await new Promise((r) => setTimeout(r, 380));
+  const recordedSeconds = Math.max(0, (Date.now() - s.startMs) / 1000);
+  const durationSeconds = Math.max(0.1, Math.round(recordedSeconds * 10) / 10);
+  const minSec = s.minUploadSeconds ?? 5;
+  if (recordedSeconds + 1e-6 < minSec) {
+    try {
+      if (s.recorder && s.recorder.state === "recording") s.recorder.stop();
+    } catch {
+      /* ignore */
+    }
+    stopClipMic(s);
+    post("bodycam_clip_put_done", {
+      correlation: s.correlation,
+      ok: false,
+      err: "CLIP_TOO_SHORT",
+      durationSeconds,
+      minUploadSeconds: minSec,
+    });
+    return;
+  }
   try {
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("recorder stop timeout")), 35_000);
@@ -298,8 +352,14 @@ async function finalizeClipSession() {
         clearTimeout(timer);
         reject(new Error("recorder error"));
       };
-      if (s.recorder.state === "recording") s.recorder.stop();
-      else {
+      if (s.recorder.state === "recording") {
+        try {
+          s.recorder.requestData();
+        } catch {
+          /* ignore */
+        }
+        s.recorder.stop();
+      } else {
         clearTimeout(timer);
         resolve();
       }
@@ -310,6 +370,8 @@ async function finalizeClipSession() {
     return;
   }
   stopClipMic(s);
+  await new Promise((r) => setTimeout(r, 120));
+  const finalSeconds = Math.max(0.1, Math.round(((Date.now() - s.startMs) / 1000) * 10) / 10);
   const baseMime = (s.mime || "video/webm").split(";")[0] || "video/webm";
   const blob = new Blob(s.chunks, { type: baseMime });
   if (!blob.size) {
@@ -330,13 +392,13 @@ async function finalizeClipSession() {
         err: t || res.statusText,
         status: res.status,
         fileSize: blob.size,
-        durationSeconds,
+        durationSeconds: finalSeconds,
       });
       return;
     }
-    post("bodycam_clip_put_done", { correlation: s.correlation, ok: true, fileSize: blob.size, durationSeconds });
+    post("bodycam_clip_put_done", { correlation: s.correlation, ok: true, fileSize: blob.size, durationSeconds: finalSeconds });
   } catch (err) {
-    post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: String(err), durationSeconds });
+    post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: String(err), durationSeconds: finalSeconds });
   }
 }
 

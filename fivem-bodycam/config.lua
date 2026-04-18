@@ -86,7 +86,10 @@ Config.RestorePreviousCameraModeOnDisable = true
 -- rapid screenshots, and periodic JPEG snapshots are disabled while this is true.
 -- Target FPS: screenshot-basic latency usually caps real throughput below this; tune if stuttery.
 Config.EnableClipMode = true
-Config.ClipMinActiveSeconds = 4
+-- Minimum bodycam **session** length (seconds) before we request a clip upload at all (aligns with short-clip policy).
+Config.ClipMinActiveSeconds = 5
+-- Minimum **recorded WebM** length (seconds); clips shorter than this are discarded (NUI) and the player is notified.
+Config.ClipMinUploadSeconds = 5
 Config.ClipRecordFps = 30
 Config.ClipRecordFpsMax = 30
 Config.ClipMaxFramesCap = 720

@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useRouter, useSearchParams } from "next/navigation";
 import { canDeleteEvidence, type GlobalRole } from "@vicevalley/shared";
+import { portalHref } from "@/lib/portalHref";
 
 /** Evidence row ids are UUIDs; reject junk like `index.txt` from bad static-export / base-tag resolution. */
 const EVIDENCE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,9 +42,16 @@ export default function EvidenceDetailClient() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [role, setRole] = useState<GlobalRole | null>(null);
   const axonActivationPlayedRef = useRef(false);
+  const [logoBroken, setLogoBroken] = useState(false);
+  type ShareRow = { id: string; token: string; expiresAt: string | null; createdAt: string };
+  const [shares, setShares] = useState<ShareRow[] | null>(null);
+  const [shareNeverExpires, setShareNeverExpires] = useState(true);
+  const [shareExpiresLocal, setShareExpiresLocal] = useState("");
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   useEffect(() => {
     axonActivationPlayedRef.current = false;
+    setLogoBroken(false);
   }, [id]);
 
   const onEvidenceVideoPlay = useCallback(() => {
@@ -92,6 +100,18 @@ export default function EvidenceDetailClient() {
     setLoadError(null);
     load();
   }, [id, load]);
+
+  useEffect(() => {
+    if (!id || !ev) return;
+    const v = String(ev.mimeType || "");
+    if (!v.startsWith("video/")) {
+      setShares(null);
+      return;
+    }
+    api<{ shares: ShareRow[] }>(`/evidence/${id}/shares`)
+      .then((r) => setShares(r.shares))
+      .catch(() => setShares(null));
+  }, [id, ev]);
 
   if (!id) {
     return null;
@@ -179,9 +199,9 @@ export default function EvidenceDetailClient() {
                   className="max-w-full w-full block"
                   onPlay={onEvidenceVideoPlay}
                 />
-                <div className="pointer-events-none absolute inset-0 flex justify-start items-start p-2 sm:p-3">
-                  <div className="flex flex-row items-start gap-2 sm:gap-3">
-                    <div className="flex flex-col gap-0.5 font-mono text-[10px] sm:text-[13px] leading-tight">
+                <div className="pointer-events-none absolute inset-0 flex justify-end items-start p-2 sm:p-3">
+                  <div className="flex flex-row items-start gap-2 sm:gap-3 max-w-[min(100%,22rem)]">
+                    <div className="flex flex-col gap-0.5 font-mono text-[10px] sm:text-[13px] leading-tight text-right">
                       <span
                         className="text-transparent"
                         style={{
@@ -203,9 +223,10 @@ export default function EvidenceDetailClient() {
                     </div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/overlay/axon-delta-gold.svg"
+                      src={logoBroken ? "/overlay/axon-delta-gold.svg" : "/overlay/axon-delta-gold.png"}
                       alt=""
-                      className="h-8 w-[37px] sm:h-11 sm:w-[51px] shrink-0 mt-0.5"
+                      onError={() => setLogoBroken(true)}
+                      className="h-10 w-auto sm:h-[3.25rem] shrink-0 mt-0.5 drop-shadow-[0_0_8px_rgba(0,0,0,0.95)]"
                     />
                   </div>
                 </div>
@@ -231,6 +252,110 @@ export default function EvidenceDetailClient() {
                 </>
               ) : null}
             </div>
+            {isVideo && shares != null ? (
+              <div className="glass p-4 space-y-3 text-sm">
+                <div className="font-medium">Public watch link</div>
+                <p className="text-zinc-500 text-xs">
+                  Anyone with the link can view this video until it expires or you revoke it. Stream URLs are
+                  short-lived; reopen the watch page for a fresh stream.
+                </p>
+                <label className="flex items-center gap-2 text-zinc-300">
+                  <input type="checkbox" checked={shareNeverExpires} onChange={(e) => setShareNeverExpires(e.target.checked)} />
+                  Never expires
+                </label>
+                {!shareNeverExpires ? (
+                  <label className="block space-y-1">
+                    <span className="text-zinc-500 text-xs">Expires (local time)</span>
+                    <input
+                      type="datetime-local"
+                      className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-sm"
+                      value={shareExpiresLocal}
+                      onChange={(e) => setShareExpiresLocal(e.target.value)}
+                    />
+                  </label>
+                ) : null}
+                {shareMsg ? <p className="text-xs text-amber-200/90">{shareMsg}</p> : null}
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-lg bg-blue-600 text-sm"
+                  onClick={async () => {
+                    setShareMsg(null);
+                    try {
+                      const body = shareNeverExpires
+                        ? { neverExpires: true as const }
+                        : {
+                            neverExpires: false as const,
+                            expiresAt: shareExpiresLocal ? new Date(shareExpiresLocal).toISOString() : "",
+                          };
+                      if (!shareNeverExpires && !shareExpiresLocal) {
+                        setShareMsg("Pick an expiry date or choose never expires.");
+                        return;
+                      }
+                      const r = await api<{ share: ShareRow }>(`/evidence/${id}/share`, {
+                        method: "POST",
+                        body: JSON.stringify(body),
+                      });
+                      const row: ShareRow = {
+                        id: r.share.id,
+                        token: r.share.token,
+                        expiresAt: r.share.expiresAt ? String(r.share.expiresAt) : null,
+                        createdAt: String(r.share.createdAt),
+                      };
+                      setShares((s) => (s ? [row, ...s] : [row]));
+                      const path = `/watch/?token=${encodeURIComponent(r.share.token)}`;
+                      const full = portalHref(path);
+                      await navigator.clipboard.writeText(full);
+                      setShareMsg("Link created and copied to clipboard.");
+                    } catch (e) {
+                      if (handleApiAuthNavigation(router, e)) return;
+                      setShareMsg(e instanceof ApiHttpError ? e.message : "Could not create link.");
+                    }
+                  }}
+                >
+                  Create link &amp; copy
+                </button>
+                {shares.length > 0 ? (
+                  <ul className="space-y-2 text-xs border-t border-zinc-800 pt-3 mt-2">
+                    {shares.map((s) => (
+                      <li key={s.id} className="flex flex-col gap-1 border-b border-zinc-800/80 pb-2">
+                        <span className="text-zinc-500">
+                          {s.expiresAt ? `Until ${new Date(s.expiresAt).toLocaleString()}` : "No expiry"}
+                        </span>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <code className="text-[10px] text-zinc-400 break-all flex-1 min-w-0">
+                            {portalHref(`/watch/?token=${encodeURIComponent(s.token)}`)}
+                          </code>
+                          <button
+                            type="button"
+                            className="text-blue-400 hover:underline shrink-0"
+                            onClick={() =>
+                              void navigator.clipboard.writeText(
+                                portalHref(`/watch/?token=${encodeURIComponent(s.token)}`)
+                              )
+                            }
+                          >
+                            Copy
+                          </button>
+                          <button
+                            type="button"
+                            className="text-red-400 hover:underline shrink-0"
+                            onClick={async () => {
+                              if (!confirm("Revoke this link?")) return;
+                              await api(`/evidence/${id}/share/${encodeURIComponent(s.id)}`, { method: "DELETE" });
+                              setShares((prev) => (prev ? prev.filter((x) => x.id !== s.id) : prev));
+                            }}
+                          >
+                            Revoke
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-zinc-600 text-xs">No active links yet.</p>
+                )}
+              </div>
+            ) : null}
             <div className="glass p-4 space-y-2">
               <div className="font-medium">Case number</div>
               <div className="flex gap-2">

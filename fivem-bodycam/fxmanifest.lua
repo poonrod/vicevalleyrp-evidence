@@ -43,6 +43,7 @@ files {
     'html/app.js',
     'html/sounds/axon_on.ogg',
     'html/overlay/axon-delta-gold.svg',
+    'html/overlay/axon-delta-gold.png',
 }
 
 dependencies {
