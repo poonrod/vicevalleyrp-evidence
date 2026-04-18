@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, handleApiAuthNavigation } from "@/lib/api";
+import { api, ApiHttpError, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -15,15 +15,22 @@ export default function EvidenceDetailClient() {
   const [note, setNote] = useState("");
   const [tag, setTag] = useState("");
   const [caseNum, setCaseNum] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!id) return;
+    setLoadError(null);
     api<{ evidence: Record<string, unknown> }>(`/evidence/${id}`)
       .then((r) => {
         setEv(r.evidence);
         setCaseNum((r.evidence.caseNumber as string) ?? "");
       })
-      .catch((e) => handleApiAuthNavigation(router, e));
+      .catch((e) => {
+        if (handleApiAuthNavigation(router, e)) return;
+        const msg =
+          e instanceof ApiHttpError ? e.message || `Request failed (${e.status})` : "Could not load this record.";
+        setLoadError(msg);
+      });
   }, [id, router]);
 
   useEffect(() => {
@@ -31,10 +38,27 @@ export default function EvidenceDetailClient() {
       router.replace("/evidence");
       return;
     }
+    setEv(null);
+    setLoadError(null);
     load();
   }, [id, router, load]);
 
-  if (!id || !ev) {
+  if (!id) {
+    return null;
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
+        <p className="text-red-200 text-sm max-w-md">{loadError}</p>
+        <button type="button" className="text-blue-400 hover:underline text-sm" onClick={() => load()}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (!ev) {
     return (
       <div className="min-h-screen flex items-center justify-center text-zinc-500">
         Loading…

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, handleApiAuthNavigation } from "@/lib/api";
+import { api, ApiHttpError, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
@@ -11,15 +11,29 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ username: string; globalRole: string } | null>(null);
   const [evidence, setEvidence] = useState<{ total: number } | null>(null);
+  const [authErr, setAuthErr] = useState<string | null>(null);
 
   useEffect(() => {
+    setAuthErr(null);
     api<{ user: { username: string; globalRole: string } }>("/auth/me")
       .then((r) => setUser(r.user))
-      .catch((e) => handleApiAuthNavigation(router, e));
+      .catch((e) => {
+        if (handleApiAuthNavigation(router, e)) return;
+        setAuthErr(e instanceof ApiHttpError ? e.message : "Could not verify session.");
+      });
     api<{ total: number }>("/evidence?pageSize=1")
       .then((r) => setEvidence({ total: r.total }))
       .catch(() => {});
   }, [router]);
+
+  if (authErr) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="text-red-200 text-sm max-w-md">{authErr}</p>
+        <p className="text-zinc-500 text-xs">If this persists, confirm the API is reachable and NEXT_PUBLIC_API_URL is correct.</p>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

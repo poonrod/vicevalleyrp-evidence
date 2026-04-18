@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, handleApiAuthNavigation } from "@/lib/api";
+import { api, ApiHttpError, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
@@ -22,13 +22,20 @@ export default function EvidenceListPage() {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams({ pageSize: "50" });
     if (q) params.set("q", q);
+    setLoadError(null);
     api<{ items: Row[] }>(`/evidence?${params}`)
       .then((r) => setRows(r.items))
-      .catch((e) => handleApiAuthNavigation(router, e));
+      .catch((e) => {
+        if (handleApiAuthNavigation(router, e)) return;
+        const msg =
+          e instanceof ApiHttpError ? e.message || `Request failed (${e.status})` : "Could not load evidence.";
+        setLoadError(msg);
+      });
   }, [router, q]);
 
   return (
@@ -37,6 +44,11 @@ export default function EvidenceListPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar title="Evidence" />
         <div className="p-4">
+          {loadError ? (
+            <div className="mb-4 rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+              {loadError}
+            </div>
+          ) : null}
           <input
             className="w-full max-w-md mb-4 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-sm"
             placeholder="Search filename, incident, officer…"
