@@ -61,9 +61,18 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
+    const ct = res.headers.get("content-type") || "";
+    const looksHtml = /<!DOCTYPE|<html[\s>]/i.test(text);
+    const hint =
+      looksHtml || ct.toLowerCase().includes("text/html")
+        ? "This often happens when NEXT_PUBLIC_API_URL points at the evidence portal (Next static site) instead of the Node API. "
+        : "";
     throw new ApiHttpError(
       502,
-      "The server returned a non-JSON response. Confirm NEXT_PUBLIC_API_URL is the API origin (not the portal URL)."
+      `${hint}Expected JSON from ${API_BASE}${path} but the response was not valid JSON. ` +
+        `Set NEXT_PUBLIC_API_URL in web/.env.local to your **API** host (e.g. https://api.yourdomain.com), not the evidence portal URL. ` +
+        `Discord OAuth redirect URI is a separate API setting (DISCORD_CALLBACK_URL); correcting the redirect does not fix this env var. ` +
+        `After changing .env.local, run npm run build again so the static export picks up NEXT_PUBLIC_API_URL.`
     );
   }
 }

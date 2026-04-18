@@ -15,7 +15,7 @@ Open `http://localhost:3000`. Use **Login** → Discord OAuth on the API (sessio
 
 ## Production
 
-- Set `NEXT_PUBLIC_API_URL` to your public API (e.g. `https://api.yourdomain.com`).
+- Set `NEXT_PUBLIC_API_URL` to your public **API** (e.g. `https://api.yourdomain.com`). This is **not** the same as the Discord OAuth redirect: redirect URI is configured on Discord + `DISCORD_CALLBACK_URL` on the API and must hit `/auth/discord/callback` on the API host. If `NEXT_PUBLIC_API_URL` accidentally points at the evidence portal, fetches return HTML and you see “non-JSON response” errors.
 - Set `NEXT_PUBLIC_WEB_APP_URL` to the portal origin where users open the site (e.g. `https://evidence.yourdomain.com`). The root layout emits a `<base href="…">` for that origin so relative RSC requests (e.g. `/evidence/index.txt`) resolve on **evidence**, not the API host. A `beforeInteractive` script still redirects if someone opens the bundle on the API domain.  
 - Deploy behind HTTPS; align cookie `Secure` with API `NODE_ENV=production`.  
 - Consider putting **Next** and **API** on sibling subdomains with correct CORS.
