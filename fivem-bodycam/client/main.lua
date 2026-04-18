@@ -4,6 +4,8 @@ Bodycam.autoLockUntil = 0
 Bodycam.lastAutoAt = 0
 Bodycam.incidentId = nil
 Bodycam.sleeping = false
+Bodycam.sessionStartMs = nil
+Bodycam.clipRecording = false
 Bodycam.personal = {
     autoTaser = true,
     autoFirearm = true,
@@ -31,6 +33,7 @@ function Bodycam.SetActive(on, sourceKind)
     end
 
     local was = Bodycam.active
+    local sessionStart = Bodycam.sessionStartMs
     Bodycam.active = on
     if on and (sourceKind == 'auto_taser' or sourceKind == 'auto_firearm') then
         Bodycam.autoLockUntil = GetGameTimer() + (Config.AutoTriggerMinimumActiveSeconds * 1000)
@@ -54,7 +57,19 @@ function Bodycam.SetActive(on, sourceKind)
     CameraClient.Apply(on)
 
     if on then
+        Bodycam.sessionStartMs = GetGameTimer()
         TriggerServerEvent('bodycam:server:getOrCreateIncident')
+    elseif was and Config.EnableClipMode and sessionStart and not Bodycam.clipRecording then
+        local sessionDurMs = GetGameTimer() - sessionStart
+        Bodycam.sessionStartMs = nil
+        local minMs = (Config.ClipMinActiveSeconds or 4) * 1000
+        if sessionDurMs >= minMs then
+            CreateThread(function()
+                CaptureClient.TryFinalizeWebmClip(sessionDurMs)
+            end)
+        end
+    elseif not on then
+        Bodycam.sessionStartMs = nil
     end
 end
 

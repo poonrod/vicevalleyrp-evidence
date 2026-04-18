@@ -49,6 +49,9 @@ RegisterNetEvent('bodycam:server:requestUpload', function(meta)
             officerBadgeNumber = badge,
             officerDepartment = dept,
             officerCallsign = cs,
+            clipRecord = meta.captureType == 'bodycam_clip_stop',
+            clipSeconds = tonumber(meta.clipMaxSeconds) or 12,
+            clipFps = tonumber(meta.clipRecordFps) or 2,
         })
     end)
 end)

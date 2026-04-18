@@ -5,6 +5,7 @@ import { api, ApiHttpError, handleApiAuthNavigation } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useRouter, useSearchParams } from "next/navigation";
+import { canDeleteEvidence, type GlobalRole } from "@vicevalley/shared";
 
 /** Evidence row ids are UUIDs; reject junk like `index.txt` from bad static-export / base-tag resolution. */
 const EVIDENCE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -22,6 +23,13 @@ export default function EvidenceDetailClient() {
   const [tag, setTag] = useState("");
   const [caseNum, setCaseNum] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [role, setRole] = useState<GlobalRole | null>(null);
+
+  useEffect(() => {
+    api<{ user: { globalRole: string } }>("/auth/me")
+      .then((r) => setRole(r.user.globalRole as GlobalRole))
+      .catch(() => setRole(null));
+  }, []);
 
   const load = useCallback(() => {
     if (!id) return;
@@ -75,7 +83,24 @@ export default function EvidenceDetailClient() {
     );
   }
 
-  const isImage = String(ev.mimeType).startsWith("image/");
+  const mime = String(ev.mimeType);
+  const isImage = mime.startsWith("image/");
+  const isVideo = mime.startsWith("video/");
+  const showDelete = role != null && canDeleteEvidence(role);
+  const durationSec =
+    typeof ev.durationSeconds === "number" && !Number.isNaN(ev.durationSeconds) ? ev.durationSeconds : null;
+
+  async function deleteEvidence(row: Record<string, unknown>) {
+    const name = String(row.fileName ?? "item");
+    if (!confirm(`Delete “${name}”? This cannot be undone.`)) return;
+    try {
+      await api(`/evidence/${encodeURIComponent(id!)}`, { method: "DELETE" });
+      router.replace("/evidence");
+    } catch (e) {
+      if (handleApiAuthNavigation(router, e)) return;
+      alert(e instanceof ApiHttpError ? e.message : "Delete failed");
+    }
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -84,7 +109,7 @@ export default function EvidenceDetailClient() {
         <Topbar title="Evidence detail" />
         <div className="p-6 grid gap-6 lg:grid-cols-2">
           <div className="glass p-4 space-y-3">
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
               <button
                 type="button"
                 className="px-3 py-1.5 rounded-lg bg-blue-600 text-sm"
@@ -100,10 +125,21 @@ export default function EvidenceDetailClient() {
                   Open media
                 </a>
               )}
+              {showDelete ? (
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-lg bg-red-950 border border-red-900 text-red-200 text-sm ml-auto"
+                  onClick={() => void deleteEvidence(ev)}
+                >
+                  Delete evidence
+                </button>
+              ) : null}
             </div>
             {isImage && url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={url} alt="" className="max-w-full rounded-lg border border-zinc-800" />
+            ) : isVideo && url ? (
+              <video src={url} controls className="max-w-full rounded-lg border border-zinc-800 bg-black" />
             ) : (
               <p className="text-zinc-500 text-sm">Request a short-lived URL to preview or download.</p>
             )}
@@ -118,6 +154,12 @@ export default function EvidenceDetailClient() {
               <div>{String(ev.captureType)}</div>
               <div className="text-zinc-500 mt-3">Retention</div>
               <div>{String(ev.retentionClass)}</div>
+              {durationSec != null ? (
+                <>
+                  <div className="text-zinc-500 mt-3">Duration</div>
+                  <div>{durationSec}s</div>
+                </>
+              ) : null}
             </div>
             <div className="glass p-4 space-y-2">
               <div className="font-medium">Case number</div>

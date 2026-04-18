@@ -37,6 +37,12 @@ Put those **`set` lines above `ensure fivem-bodycam`** in `server.cfg` so the re
 
 **Verbose server logs:** add `set bodycam_debug "1"` next to your other bodycam convars; failed upload-url / complete calls print one line to the server console with the error string.
 
+## WebM clip (when `Config.EnableClipMode` is true)
+
+After the officer turns **bodycam off**, the client captures a short burst of **JPEG frames** from `screenshot-basic`, encodes them in NUI with **MediaRecorder** into **WebM (VP8/VP9)**, then **PUTs** the blob to the same presigned flow as photos. Length is capped by `ShortClipMaxSeconds` and session time. **Periodic JPEG snapshots are disabled while clip mode is on** so the portal is not flooded with stills. Turn clip mode off in `config.lua` (`EnableClipMode = false`) if you only want interval photos again.
+
+R2/S3 **CORS** must allow **PUT** with `Content-Type: video/webm` from `https://cfx-nui-*` origins (same as JPEG). If the clip step fails, check the client F8 console and server `bodycam_debug` lines.
+
 **C7 Framework V3** — set `bodycam_framework` to `c7fw` and align `AllowedJobs` in `config.lua` with C7 department IDs (`GetCharDept` / `char_department`, e.g. `lspd`):
 
 ```

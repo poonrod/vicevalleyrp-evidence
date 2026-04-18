@@ -82,7 +82,12 @@ Config.UseFirstPersonForSnapshots = true
 Config.RestorePreviousCameraModeOnDisable = true
 
 -- Video tiers (policy enforced server/API; client hints for UX)
-Config.EnableClipMode = false
+-- When true, turning bodycam off records a short WebM (canvas + MediaRecorder in NUI) from
+-- rapid screenshots, and periodic JPEG snapshots are disabled while this is true.
+Config.EnableClipMode = true
+Config.ClipMinActiveSeconds = 4
+Config.ClipRecordFps = 2
+Config.ClipEstimatedMaxMB = 40
 Config.EnableLongVideoMode = false
 Config.ShortClipMaxSeconds = 30
 Config.MediumClipMaxSeconds = 300

@@ -318,7 +318,7 @@ evidenceRouter.post("/:id/legal-hold", requireMinRole("command_staff"), async (r
   res.json({ evidence: ev });
 });
 
-evidenceRouter.delete("/:id", requireMinRole("command_staff"), async (req, res) => {
+evidenceRouter.delete("/:id", requireMinRole("evidence_tech"), async (req, res) => {
   const ev = await prisma.evidenceItem.findFirst({ where: { id: String(req.params.id) } });
   if (!ev) return res.status(404).json({ error: "Not found" });
   const storage = createStorageProvider();

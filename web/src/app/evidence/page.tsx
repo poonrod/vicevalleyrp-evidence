@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { canDeleteEvidence, type GlobalRole } from "@vicevalley/shared";
 
 type Row = {
   id: string;
@@ -23,6 +24,13 @@ export default function EvidenceListPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [role, setRole] = useState<GlobalRole | null>(null);
+
+  useEffect(() => {
+    api<{ user: { globalRole: string } }>("/auth/me")
+      .then((r) => setRole(r.user.globalRole as GlobalRole))
+      .catch(() => setRole(null));
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams({ pageSize: "50" });
@@ -37,6 +45,20 @@ export default function EvidenceListPage() {
         setLoadError(msg);
       });
   }, [router, q]);
+
+  const showDelete = role != null && canDeleteEvidence(role);
+
+  async function deleteRow(id: string, label: string) {
+    if (!confirm(`Delete evidence “${label}”? This cannot be undone.`)) return;
+    try {
+      await api(`/evidence/${encodeURIComponent(id)}`, { method: "DELETE" });
+      setRows((prev) => prev.filter((r) => r.id !== id));
+    } catch (e) {
+      if (handleApiAuthNavigation(router, e)) return;
+      const msg = e instanceof ApiHttpError ? e.message : "Delete failed";
+      alert(msg);
+    }
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -65,6 +87,7 @@ export default function EvidenceListPage() {
                   <th className="p-3">Discord</th>
                   <th className="p-3">Retention</th>
                   <th className="p-3">Delete after</th>
+                  {showDelete ? <th className="p-3 w-28">Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -82,6 +105,17 @@ export default function EvidenceListPage() {
                     <td className="p-3 text-zinc-500 text-xs">
                       {r.scheduledDeletionAt ? new Date(r.scheduledDeletionAt).toLocaleString() : "—"}
                     </td>
+                    {showDelete ? (
+                      <td className="p-3">
+                        <button
+                          type="button"
+                          className="text-sm text-red-400 hover:underline"
+                          onClick={() => void deleteRow(r.id, r.fileName)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

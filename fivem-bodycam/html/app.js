@@ -28,6 +28,18 @@ window.addEventListener("message", (e) => {
   if (d.type === "bodycam_presigned_put") {
     void runPresignedPut(d);
   }
+  if (d.type === "bodycam_clip_begin") {
+    startClipSession(d);
+  }
+  if (d.type === "bodycam_clip_frame") {
+    pushClipFrame(d);
+  }
+  if (d.type === "bodycam_clip_end") {
+    void finalizeClipSession();
+  }
+  if (d.type === "bodycam_clip_abort") {
+    abortClipSession(d.correlation);
+  }
   if (d.type === "config_open") {
     config.classList.remove("hidden");
     document.getElementById("sleeping").checked = !!d.sleeping;
@@ -44,6 +56,159 @@ window.addEventListener("message", (e) => {
 
 function resourceName() {
   return typeof GetParentResourceName === "function" ? GetParentResourceName() : "vicevalley_bodycam";
+}
+
+/** Short WebM bodycam clip: frames from Lua → canvas → MediaRecorder → presigned PUT. */
+let clipSession = null;
+
+function pickRecorderMime() {
+  if (typeof MediaRecorder === "undefined") return "";
+  const opts = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  for (const o of opts) {
+    if (MediaRecorder.isTypeSupported(o)) return o;
+  }
+  return "";
+}
+
+function abortClipSession(correlation) {
+  const s = clipSession;
+  clipSession = null;
+  if (s && s.recorder && s.recorder.state !== "inactive") {
+    try {
+      s.recorder.stop();
+    } catch {
+      /* ignore */
+    }
+  }
+  if (correlation != null && correlation !== "") {
+    post("bodycam_clip_put_done", { correlation: String(correlation), ok: false, err: "aborted" });
+  }
+}
+
+function startClipSession(d) {
+  abortClipSession(null);
+  const mime = pickRecorderMime();
+  if (!mime) {
+    post("bodycam_clip_put_done", {
+      correlation: d.correlation,
+      ok: false,
+      err: "MediaRecorder/WebM not supported in this client",
+    });
+    return;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: "no canvas context" });
+    return;
+  }
+  const fps = Math.max(1, Math.min(12, Number(d.fps) || 2));
+  const stream = canvas.captureStream(fps);
+  let recorder;
+  try {
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2_500_000 });
+  } catch (err) {
+    post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: String(err) });
+    return;
+  }
+  const chunks = [];
+  recorder.ondataavailable = (ev) => {
+    if (ev.data && ev.data.size) chunks.push(ev.data);
+  };
+  clipSession = {
+    correlation: String(d.correlation),
+    canvas,
+    ctx,
+    recorder,
+    chunks,
+    url: d.url,
+    mime,
+    startMs: Date.now(),
+  };
+  try {
+    recorder.start(250);
+  } catch (err) {
+    clipSession = null;
+    post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: String(err) });
+  }
+}
+
+function pushClipFrame(d) {
+  if (!clipSession || clipSession.correlation !== String(d.correlation)) return;
+  const img = new Image();
+  img.onload = () => {
+    if (!clipSession || clipSession.correlation !== String(d.correlation)) return;
+    const { canvas, ctx } = clipSession;
+    if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+    }
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  };
+  img.onerror = () => {
+    post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: "frame decode failed" });
+    abortClipSession(null);
+  };
+  img.src = d.dataUrl;
+}
+
+async function finalizeClipSession() {
+  const s = clipSession;
+  if (!s) return;
+  clipSession = null;
+  await new Promise((r) => setTimeout(r, 200));
+  const durationSeconds = Math.max(1, Math.round(((Date.now() - s.startMs) / 1000) * 10) / 10);
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("recorder stop timeout")), 8000);
+      s.recorder.onstop = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      s.recorder.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error("recorder error"));
+      };
+      if (s.recorder.state === "recording") s.recorder.stop();
+      else {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+  } catch (err) {
+    post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: String(err) });
+    return;
+  }
+  const baseMime = (s.mime || "video/webm").split(";")[0] || "video/webm";
+  const blob = new Blob(s.chunks, { type: baseMime });
+  if (!blob.size) {
+    post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: "empty WebM blob" });
+    return;
+  }
+  try {
+    const res = await fetch(s.url, {
+      method: "PUT",
+      headers: { "Content-Type": "video/webm" },
+      body: blob,
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      post("bodycam_clip_put_done", {
+        correlation: s.correlation,
+        ok: false,
+        err: t || res.statusText,
+        status: res.status,
+        fileSize: blob.size,
+        durationSeconds,
+      });
+      return;
+    }
+    post("bodycam_clip_put_done", { correlation: s.correlation, ok: true, fileSize: blob.size, durationSeconds });
+  } catch (err) {
+    post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: String(err), durationSeconds });
+  }
 }
 
 /** Presigned S3/R2 URLs require PUT + raw body; screenshot-basic only POSTs multipart. */

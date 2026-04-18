@@ -218,7 +218,11 @@ export async function issueUploadUrlForFivem(params: {
 
   const storage = createStorageProvider();
   const evidenceId = newEvidenceId();
-  const ext = extensionFromFileName(params.fileName) || ".jpg";
+  const ext =
+    extensionFromFileName(params.fileName) ||
+    (params.mimeType.toLowerCase().includes("webm") ? ".webm" : "") ||
+    (params.mimeType.toLowerCase().includes("video") ? ".mp4" : "") ||
+    ".jpg";
   const key = evidenceObjectKey({
     discordId: params.officerDiscordId,
     evidenceId,
