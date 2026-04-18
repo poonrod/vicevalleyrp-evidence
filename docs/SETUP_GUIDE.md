@@ -473,8 +473,8 @@ This bodycam resource uploads screenshots through **screenshot-basic** (or a com
 
 ### 7.2 Copy the bodycam folder
 
-1. Copy the folder `fivem-bodycam` from the repo into your server, e.g.  
-   `resources\[local]\vicevalley_bodycam`
+1. Copy the folder `penheads-bodycam` from the repo into your server, e.g.  
+   `resources\[local]\penheads-bodycam`
 
 2. Rename the folder if you want; the folder name is what you `ensure`.
 
@@ -495,14 +495,14 @@ Start order example:
 
 ```cfg
 ensure screenshot-basic
-ensure vicevalley_bodycam
+ensure penheads-bodycam
 ```
 
-(Replace `vicevalley_bodycam` with your folder name.)
+(Replace `penheads-bodycam` with your folder name if you renamed the resource.)
 
 ### 7.4 Match `config.lua` to your server
 
-Open `fivem-bodycam\config.lua`:
+Open `penheads-bodycam\config.lua`:
 
 - **`Config.AllowedJobs`** — job names that may use the bodycam (must match your framework’s `job.name` strings).
 - **`Config.RequireBodycamProp`** — leave `false` until uniforms are configured.
@@ -535,7 +535,7 @@ Open `fivem-bodycam\config.lua`:
 
 ## Step 9 — Sounds (optional)
 
-1. Add `axon_on.ogg` and `axon_off.ogg` under `fivem-bodycam\html\sounds\`.
+1. Add `axon_on.ogg` and `axon_off.ogg` under `penheads-bodycam\html\sounds\`.
 2. In `fxmanifest.lua`, add under `files { }`:
 
    ```lua
@@ -592,7 +592,7 @@ The file must finish uploading to R2 **before** the API runs `complete`. Slow ne
 
 ## Where to read next
 
-- [`fivem-bodycam/README.md`](../fivem-bodycam/README.md) — commands, convars, screenshot note  
+- [`penheads-bodycam/README.md`](../penheads-bodycam/README.md) — commands, convars, screenshot note  
 - [`api/README.md`](../api/README.md) — API routes and internal FiveM headers  
 - [`web/README.md`](../web/README.md) — portal env vars  
 - Root [`README.md`](../README.md) — R2 security and prefix layout  

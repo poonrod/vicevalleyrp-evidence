@@ -6,7 +6,7 @@ Monorepo for a **FiveM bodycam resource**, **Node.js evidence API** (Express + T
 
 ```
 vicevalleyrp-evidence/
-├── fivem-bodycam/     # FiveM resource (client/server/NUI)
+├── penheads-bodycam/     # FiveM resource (client/server/NUI)
 ├── api/               # REST API, Prisma, retention worker, presigned URLs
 ├── web/               # Next.js evidence portal (dark UI)
 ├── shared/            # Shared Zod schemas, roles, enums
@@ -49,7 +49,7 @@ vicevalleyrp-evidence/
 6. **FiveM**  
    - Install [screenshot-basic](https://github.com/citizenfx/screenshot-basic) (or compatible uploader).  
    - Set convars: `bodycam_api_base`, `bodycam_api_secret`, `bodycam_framework` (`c7fw` for [C7FW](https://docs.c7scripts.com/paid/c7fw), or `standalone`).  
-   - See `fivem-bodycam/README.md`.
+   - See `penheads-bodycam/README.md`.
 
 ## Cloudflare R2 setup (beginner-friendly)
 
@@ -100,7 +100,7 @@ PRESIGNED_URL_EXPIRES_SECONDS=900
 
 ### 8. Testing presigned upload
 
-1. `POST /internal/fivem/evidence/upload-url` with header `X-FiveM-Secret` and JSON body (see `fivem-bodycam` + OpenAPI-style examples in `docs/SETUP_GUIDE.md`).  
+1. `POST /internal/fivem/evidence/upload-url` with header `X-FiveM-Secret` and JSON body (see `penheads-bodycam` + OpenAPI-style examples in `docs/SETUP_GUIDE.md`).  
 2. `PUT` the file body to the returned `url` with the same `Content-Type` you requested.  
 3. `POST /internal/fivem/evidence/complete` to register metadata after the object exists.
 
@@ -160,7 +160,7 @@ See `@vicevalley/shared` and `docs/SETUP_GUIDE.md` for promotion workflow.
 ## Further reading
 
 - **`docs/SETUP_GUIDE.md`** — starter walkthrough (tools → MySQL → API → R2 → Discord → web → FiveM `server.cfg` → in-game test). Includes **Hostinger Node.js Web App**: two hPanel deployments (`npm run hostinger:build:api` / `hostinger:start:api` and `hostinger:build:web` / `hostinger:start:web`) from this monorepo.  
-- **`api/README.md`**, **`web/README.md`**, **`fivem-bodycam/README.md`**.
+- **`api/README.md`**, **`web/README.md`**, **`penheads-bodycam/README.md`**.
 
 ## License
 

@@ -9,7 +9,7 @@ const clipAudioConsoleGate = document.getElementById("clipAudioConsoleGate");
 /** Cached getDisplayMedia stream (audio) — primed from F8 console UI (`bodycamclipaudio`). */
 let cachedDisplayAudioStream = null;
 
-const DISPLAY_AUDIO_LS_KEY = "vicevalley_bodycam_display_audio_v1";
+const DISPLAY_AUDIO_LS_KEY = "penheads_bodycam_display_audio_v1";
 
 function persistDisplayAudioOk() {
   try {
@@ -226,7 +226,7 @@ window.addEventListener("message", (e) => {
 });
 
 function resourceName() {
-  return typeof GetParentResourceName === "function" ? GetParentResourceName() : "vicevalley_bodycam";
+  return typeof GetParentResourceName === "function" ? GetParentResourceName() : "penheads-bodycam";
 }
 
 /** Short WebM bodycam clip: frames from Lua → canvas → MediaRecorder → presigned PUT. */

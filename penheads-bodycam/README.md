@@ -16,9 +16,9 @@ set bodycam_framework "standalone"
 # setr bodycam_screenshot_resource "my-screenshot-resource"
 ```
 
-Put those **`set` lines above `ensure fivem-bodycam`** in `server.cfg` so the resource reads the correct URL/secret when it starts. `bodycam_api_secret` must match **`FIVEM_API_SECRET`** in the evidence API `.env` exactly.
+Put those **`set` lines above `ensure penheads-bodycam`** in `server.cfg` so the resource reads the correct URL/secret when it starts. `bodycam_api_secret` must match **`FIVEM_API_SECRET`** in the evidence API `.env` exactly.
 
-**Screenshot resource:** Install [citizenfx/screenshot-basic](https://github.com/citizenfx/screenshot-basic) so the folder is exactly **`screenshot-basic`**, then `ensure screenshot-basic` **before** `ensure fivem-bodycam`. That resource declares dependencies **`yarn`** and **`webpack`** (bundled with normal FXServer templates). If either dependency fails to start, screenshot-basic will not start.
+**Screenshot resource:** Install [citizenfx/screenshot-basic](https://github.com/citizenfx/screenshot-basic) so the folder is exactly **`screenshot-basic`**, then `ensure screenshot-basic` **before** `ensure penheads-bodycam`. That resource declares dependencies **`yarn`** and **`webpack`** (bundled with normal FXServer templates). If either dependency fails to start, screenshot-basic will not start.
 
 **`Couldn't find resource yarn` / “yarn exists in more than one place”:** The real **`yarn`** builder ships under something like **`resources\[system]\[builders]\yarn`** with a proper **`fxmanifest.lua`**. If you also have a **`yarn`** folder under **`[gameplay]`** (or anywhere else) with **no** manifest, the scanner warns, the name collides, and **`ensure yarn`** can fail — then **`screenshot-basic`** cannot resolve its dependency. **Delete the extra `yarn` folder** (keep only the official `[builders]` one), clear **`cache`**, restart.
 

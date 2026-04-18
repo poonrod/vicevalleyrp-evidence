@@ -1,7 +1,7 @@
 fx_version 'cerulean'
 game 'gta5'
 
-name 'vicevalley_bodycam'
+name 'penheads-bodycam'
 author 'Vice Valley RP'
 description 'Bodycam evidence — MVP screenshot pipeline with secure API upload'
 version '1.0.0'
