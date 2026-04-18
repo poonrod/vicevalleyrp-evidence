@@ -416,21 +416,46 @@ export default function DeveloperPage() {
                 type="button"
                 disabled={!!busy || bulkConfirm !== "CONFIRM"}
                 className="px-3 py-1.5 rounded-lg bg-red-900 text-red-100 text-sm disabled:opacity-40"
-                onClick={() =>
-                  void runDev("Bulk delete execute", "/developer/evidence/bulk-delete-execute", {
-                    method: "POST",
-                    body: JSON.stringify({
-                      confirm: "CONFIRM",
-                      filters: {
-                        ...bulkFilters,
-                        dateFrom: bulkFilters.dateFrom || undefined,
-                        dateTo: bulkFilters.dateTo || undefined,
-                        officerDiscordId: bulkFilters.officerDiscordId || undefined,
-                        caseNumber: bulkFilters.caseNumber || undefined,
-                      },
-                    }),
-                  }).then(() => setBulkConfirm(""))
-                }
+                onClick={() => {
+                  void (async () => {
+                    const label = "Bulk delete execute";
+                    setBusy(label);
+                    try {
+                      const r = await api<Record<string, unknown>>("/developer/evidence/bulk-delete-execute", {
+                        method: "POST",
+                        body: JSON.stringify({
+                          confirm: "CONFIRM",
+                          filters: {
+                            ...bulkFilters,
+                            dateFrom: bulkFilters.dateFrom || undefined,
+                            dateTo: bulkFilters.dateTo || undefined,
+                            officerDiscordId: bulkFilters.officerDiscordId || undefined,
+                            caseNumber: bulkFilters.caseNumber || undefined,
+                          },
+                        }),
+                      });
+                      setLastJson(r);
+                      setBulkConfirm("");
+                      const fails = Number(r.storageDeleteFailures) || 0;
+                      if (fails > 0) {
+                        const bucket = typeof r.storageBucket === "string" ? r.storageBucket : "?";
+                        toast(
+                          "err",
+                          `${label}: ${fails} storage delete(s) failed (bucket ${bucket}). DB rows tombstoned — see JSON for samples; fix R2 credentials / s3:DeleteObject on API host.`,
+                        );
+                      } else {
+                        toast("ok", `${label}: OK (${String(r.deleted ?? 0)} rows, R2 objects removed).`);
+                      }
+                    } catch (e) {
+                      if (handleApiAuthNavigation(router, e)) return;
+                      const msg = e instanceof ApiHttpError ? e.message : String(e);
+                      toast("err", `${label}: ${msg}`);
+                      setLastJson({ error: msg });
+                    } finally {
+                      setBusy(null);
+                    }
+                  })();
+                }}
               >
                 Execute delete
               </button>

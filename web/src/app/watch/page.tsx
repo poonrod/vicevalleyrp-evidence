@@ -1,8 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/api";
+import { playBodycamActivationPreview, primeBodycamPreviewAudio } from "@/lib/bodycamPreviewSound";
 
 type SharePayload = {
   fileName: string;
@@ -17,6 +18,17 @@ function WatchInner() {
   const token = (sp.get("token") || "").trim();
   const [data, setData] = useState<SharePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const activationPlayedRef = useRef(false);
+
+  useEffect(() => {
+    activationPlayedRef.current = false;
+  }, [token]);
+
+  const onSharedVideoPlay = useCallback(() => {
+    if (activationPlayedRef.current) return;
+    activationPlayedRef.current = true;
+    playBodycamActivationPreview(0.35);
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -88,9 +100,19 @@ function WatchInner() {
           <span className="text-xs text-zinc-500">Link does not expire</span>
         )}
       </header>
-      <main className="flex-1 p-4 flex items-center justify-center">
+      <main
+        className="flex-1 p-4 flex items-center justify-center"
+        onPointerDownCapture={() => {
+          void primeBodycamPreviewAudio();
+        }}
+      >
         {isVideo ? (
-          <video src={data.streamUrl} controls className="max-w-full max-h-[85vh] rounded-lg border border-zinc-800 bg-black" />
+          <video
+            src={data.streamUrl}
+            controls
+            onPlay={onSharedVideoPlay}
+            className="max-w-full max-h-[85vh] rounded-lg border border-zinc-800 bg-black"
+          />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={data.streamUrl} alt="" className="max-w-full max-h-[85vh] rounded-lg border border-zinc-800" />

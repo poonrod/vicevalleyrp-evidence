@@ -47,7 +47,10 @@ function Bodycam.SetActive(on, sourceKind)
     })
 
     if on and Config.EnableClipMode and Config.EnableClipRecordingMicrophone ~= false then
-        SendNUIMessage({ type = 'bodycam_mic_warmup' })
+        SendNUIMessage({
+            type = 'bodycam_mic_warmup',
+            clipMicProcessing = (Config.ClipMicrophoneProcessing == 'ambient') and 'ambient' or 'voice',
+        })
     end
 
     if Config.EnableBodycamSounds and Bodycam.personal.sound then

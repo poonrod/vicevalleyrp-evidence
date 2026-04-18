@@ -386,13 +386,24 @@ developerRouter.post("/evidence/bulk-delete-execute", async (req, res) => {
   const rows = await prisma.evidenceItem.findMany({ where, select: { id: true, storageKey: true } });
   const now = new Date();
   let deleted = 0;
+  let storageDeleteFailures = 0;
+  const storageDeleteErrorSamples: string[] = [];
+  const pushSample = (line: string) => {
+    if (storageDeleteErrorSamples.length < 8) storageDeleteErrorSamples.push(line);
+  };
   const batchSize = 25;
   for (let i = 0; i < rows.length; i += batchSize) {
     const chunk = rows.slice(i, i + batchSize);
     for (const r of chunk) {
       try {
         await storage.deleteObject(r.storageKey);
-      } catch {
+      } catch (e) {
+        storageDeleteFailures++;
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(
+          `[developer.bulk_delete] R2/S3 deleteObject failed key=${JSON.stringify(r.storageKey)}: ${msg}`
+        );
+        pushSample(`${r.storageKey}: ${msg}`);
         /* still tombstone DB */
       }
       await prisma.evidenceItem.update({
@@ -422,5 +433,13 @@ developerRouter.post("/evidence/bulk-delete-execute", async (req, res) => {
     filters: body.filters,
   } as Record<string, unknown>);
 
-  res.json({ ok: true, deleted, matchedBefore: before });
+  res.json({
+    ok: true,
+    deleted,
+    matchedBefore: before,
+    storageDeleteFailures,
+    storageDeleteErrorSamples,
+    storageBucket: storage.getBucket(),
+    storageKind: storage.kind,
+  });
 });

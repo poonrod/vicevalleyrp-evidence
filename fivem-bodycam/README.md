@@ -43,7 +43,9 @@ After the officer turns **bodycam off**, the client captures a burst of **JPEG f
 
 - **FPS:** `ClipRecordFps` / `ClipRecordFpsMax` default to **30**. Real frame rate is often **lower** than the target because each `requestScreenshot` call takes time; if the client stutters or clips fail, reduce FPS or `ShortClipMaxSeconds` in `config.lua`. `ClipMaxFramesCap` limits total frames for safety.
 - **Microphone:** When `EnableClipRecordingMicrophone` is true (default), NUI calls **`getUserMedia({ audio })`** and mixes that track into the WebM. That is the player’s **physical microphone** in Windows (what Discord/browser would use). The player may get a browser permission prompt the first time.
+- **`ClipMicrophoneProcessing`:** `"voice"` (default) uses echo/noise suppression (good for comms). `"ambient"` turns most of that off so **speaker / room** sound is louder — useful if game audio is heard through speakers and you want more of it on the clip (still **mic-only**, not a direct game tap). For a **virtual mix** of desktop/game audio into the “mic”, players can install **VB-Audio Cable** / **Stereo Mix** and set that device as the default recording device (advanced; not automated by this resource).
 - **In-game SFX + Mumble / voice chat audio:** The GTA engine mix and Mumble output are **not exposed to CEF**. `EnableClipRecordingGameAudio` is reserved and stays **false** unless you ship a **custom native / voice resource** that feeds PCM into this resource. There is no supported way to “tap” game world audio from Lua+NUI alone.
+- **Bitrate / resolution:** WebM encoding uses **`ShortClipBitrateKbps`** and downscales frames to **`ShortClipResolution`** before `MediaRecorder` so the encoder keeps up; if clips still hitch, lower **`ClipRecordFps`** or max seconds.
 
 **Periodic JPEG snapshots are disabled while clip mode is on.** Set `EnableClipMode = false` if you only want interval photos.
 

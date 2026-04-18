@@ -5,6 +5,16 @@ CaptureClient = {}
 local pendingPresigned = {}
 local presignedCorrelation = 0
 
+local function parseClipTargetSize()
+    local s = tostring(Config.ShortClipResolution or '1280x720')
+    local w, h = string.match(s, '(%d+)x(%d+)')
+    w, h = tonumber(w), tonumber(h)
+    if not w or not h or w < 320 or h < 180 then
+        return 1280, 720
+    end
+    return math.floor(w), math.floor(h)
+end
+
 local function completeAfterPut(cid, body)
     local pending = pendingPresigned[cid]
     if not pending then return end
@@ -219,6 +229,11 @@ local function startWebmClipFromPresign(data)
     local wmNum = (sid * 7919 + (tonumber(cid) or 0) * 503) % 10000000
     local wmLine2 = ('AXON BODY WF x%07d'):format(wmNum)
 
+    local clipW, clipH = parseClipTargetSize()
+    local clipKbps = math.floor(tonumber(Config.ShortClipBitrateKbps) or 2000)
+    if clipKbps < 400 then clipKbps = 400 end
+    if clipKbps > 12000 then clipKbps = 12000 end
+
     SendNUIMessage({
         type = 'bodycam_clip_begin',
         correlation = cid,
@@ -229,6 +244,10 @@ local function startWebmClipFromPresign(data)
         watermarkTime = wmTime,
         watermarkLine2 = wmLine2,
         minUploadSeconds = tonumber(Config.ClipMinUploadSeconds) or 5,
+        clipVideoBitrateKbps = clipKbps,
+        clipMaxWidth = clipW,
+        clipMaxHeight = clipH,
+        clipMicProcessing = (Config.ClipMicrophoneProcessing == 'ambient') and 'ambient' or 'voice',
     })
 
     Citizen.SetTimeout(80, function()

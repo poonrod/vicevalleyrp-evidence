@@ -90,13 +90,17 @@ Config.EnableClipMode = true
 Config.ClipMinActiveSeconds = 5
 -- Minimum **recorded WebM** length (seconds); clips shorter than this are discarded (NUI) and the player is notified.
 Config.ClipMinUploadSeconds = 5
-Config.ClipRecordFps = 30
+-- Lower FPS reduces NUI encoder load and stutter when screenshot-basic cannot keep up.
+Config.ClipRecordFps = 24
 Config.ClipRecordFpsMax = 30
 Config.ClipMaxFramesCap = 720
 Config.ClipEstimatedMaxMB = 96
 -- Mix the player's real microphone (browser getUserMedia) into the WebM when supported.
 -- This is the physical mic — not a tap of Mumble/VOIP or GTA world SFX (see README).
 Config.EnableClipRecordingMicrophone = true
+-- "voice" = echo/noise suppression (Discord-like). "ambient" = lighter processing so room/speaker
+-- bleed is louder (still mic-only). True game audio needs a loopback device (VB-Audio / Stereo Mix) set as the default mic in Windows, or a custom native bridge.
+Config.ClipMicrophoneProcessing = "voice"
 -- Reserved: CEF/NUI cannot read GTA engine audio or Mumble output; keep false unless you add a custom native bridge.
 Config.EnableClipRecordingGameAudio = false
 Config.EnableLongVideoMode = false

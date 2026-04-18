@@ -7,6 +7,7 @@ import { Topbar } from "@/components/Topbar";
 import { useRouter, useSearchParams } from "next/navigation";
 import { canDeleteEvidence, type GlobalRole } from "@vicevalley/shared";
 import { portalHref } from "@/lib/portalHref";
+import { playBodycamActivationPreview, primeBodycamPreviewAudio } from "@/lib/bodycamPreviewSound";
 
 /** Evidence row ids are UUIDs; reject junk like `index.txt` from bad static-export / base-tag resolution. */
 const EVIDENCE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,13 +58,7 @@ export default function EvidenceDetailClient() {
   const onEvidenceVideoPlay = useCallback(() => {
     if (axonActivationPlayedRef.current) return;
     axonActivationPlayedRef.current = true;
-    try {
-      const a = new Audio("/sounds/axon_on.ogg");
-      a.volume = 0.35;
-      void a.play();
-    } catch {
-      /* ignore */
-    }
+    playBodycamActivationPreview(0.35);
   }, []);
 
   useEffect(() => {
@@ -161,7 +156,12 @@ export default function EvidenceDetailClient() {
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar title="Evidence detail" />
         <div className="p-6 grid gap-6 lg:grid-cols-2">
-          <div className="glass p-4 space-y-3">
+          <div
+            className="glass p-4 space-y-3"
+            onPointerDownCapture={() => {
+              void primeBodycamPreviewAudio();
+            }}
+          >
             <div className="flex gap-2 flex-wrap items-center">
               <button
                 type="button"

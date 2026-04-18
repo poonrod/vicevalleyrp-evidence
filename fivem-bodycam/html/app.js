@@ -18,9 +18,20 @@ window.addEventListener("message", (e) => {
   }
   if (d.type === "play_sound") {
     try {
-      player.src = `sounds/${d.file}`;
-      player.volume = typeof d.volume === "number" ? d.volume : 0.35;
-      player.play().catch(() => {});
+      const vol = typeof d.volume === "number" ? d.volume : 0.35;
+      const src = new URL(`sounds/${d.file}`, window.location.href).href;
+      const clip = new Audio(src);
+      clip.volume = vol;
+      clip.setAttribute("playsinline", "");
+      void clip.play().catch(() => {
+        try {
+          player.src = src;
+          player.volume = vol;
+          void player.play().catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      });
     } catch {
       /* missing file */
     }
@@ -29,7 +40,7 @@ window.addEventListener("message", (e) => {
     void runPresignedPut(d);
   }
   if (d.type === "bodycam_mic_warmup") {
-    void warmUpMicrophone();
+    void warmUpMicrophone(d);
   }
   if (d.type === "bodycam_clip_begin") {
     void startClipSession(d);
@@ -64,14 +75,25 @@ function resourceName() {
 /** Short WebM bodycam clip: frames from Lua → canvas → MediaRecorder → presigned PUT. */
 let clipSession = null;
 
-async function warmUpMicrophone() {
+function clipMicAudioConstraints(processing) {
+  const ambient = processing === "ambient";
+  return {
+    echoCancellation: !ambient,
+    noiseSuppression: !ambient,
+    autoGainControl: true,
+    channelCount: 1,
+  };
+}
+
+async function warmUpMicrophone(d) {
   if (!navigator.mediaDevices?.getUserMedia) {
     post("bodycam_mic_warmup_result", { ok: false, err: "getUserMedia_unavailable" });
     return;
   }
+  const proc = d && d.clipMicProcessing === "ambient" ? "ambient" : "voice";
   try {
     const s = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      audio: clipMicAudioConstraints(proc),
       video: false,
     });
     for (const t of s.getTracks()) t.stop();
@@ -196,8 +218,10 @@ function abortClipSession(correlation, errMsg) {
 async function startClipSession(d) {
   abortClipSession(null);
   const canvas = document.createElement("canvas");
-  canvas.width = 1280;
-  canvas.height = 720;
+  const initW = Math.max(320, Math.min(1920, Number(d.clipMaxWidth) || 1280));
+  const initH = Math.max(180, Math.min(1080, Number(d.clipMaxHeight) || 720));
+  canvas.width = initW;
+  canvas.height = initH;
   const ctx = canvas.getContext("2d");
   if (!ctx) {
     post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: "no canvas context" });
@@ -210,15 +234,11 @@ async function startClipSession(d) {
   const logoPromise = loadClipWatermarkLogo();
 
   let micStream = null;
+  const micProc = d.clipMicProcessing === "ambient" ? "ambient" : "voice";
   if (wantMic) {
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-        },
+        audio: clipMicAudioConstraints(micProc),
         video: false,
       });
     } catch {
@@ -253,9 +273,10 @@ async function startClipSession(d) {
   if (hasAudio) tracks.push(...micStream.getAudioTracks());
   const merged = new MediaStream(tracks);
 
+  const kbps = Math.max(400, Math.min(12000, Number(d.clipVideoBitrateKbps) || 2000));
   const recOpts = {
     mimeType: mime,
-    videoBitsPerSecond: 6_000_000,
+    videoBitsPerSecond: kbps * 1000,
   };
   if (hasAudio) recOpts.audioBitsPerSecond = 128_000;
 
@@ -287,10 +308,12 @@ async function startClipSession(d) {
     wmLine2,
     logo,
     minUploadSeconds: Math.max(1, Math.min(120, Number(d.minUploadSeconds) || 5)),
+    clipMaxWidth: initW,
+    clipMaxHeight: initH,
   };
 
   try {
-    recorder.start(250);
+    recorder.start(100);
   } catch (err) {
     clipSession = null;
     stopClipMic({ micStream });
@@ -304,11 +327,20 @@ function pushClipFrame(d) {
   img.onload = () => {
     if (!clipSession || clipSession.correlation !== String(d.correlation)) return;
     const { canvas, ctx } = clipSession;
-    if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+    const maxW = clipSession.clipMaxWidth || 1280;
+    const maxH = clipSession.clipMaxHeight || 720;
+    let tw = img.naturalWidth;
+    let th = img.naturalHeight;
+    if (tw > maxW || th > maxH) {
+      const scale = Math.min(maxW / tw, maxH / th);
+      tw = Math.max(1, Math.round(tw * scale));
+      th = Math.max(1, Math.round(th * scale));
     }
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if (canvas.width !== tw || canvas.height !== th) {
+      canvas.width = tw;
+      canvas.height = th;
+    }
+    ctx.drawImage(img, 0, 0, tw, th);
     drawBodycamWatermark(ctx, clipSession, canvas.width);
   };
   img.onerror = () => {
