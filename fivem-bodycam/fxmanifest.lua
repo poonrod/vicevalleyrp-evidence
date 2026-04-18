@@ -42,6 +42,7 @@ files {
     'html/style.css',
     'html/app.js',
     'html/sounds/axon_on.ogg',
+    'html/overlay/axon-delta-gold.svg',
 }
 
 dependencies {

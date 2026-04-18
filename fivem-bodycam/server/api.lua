@@ -27,6 +27,24 @@ function Api.CompleteEvidence(src, payload, cb)
     post('/internal/fivem/evidence/complete', payload, cb)
 end
 
+--- GET /internal/fivem/ping — confirms base URL and X-FiveM-Secret (resource startup log).
+function Api.PingEvidenceTerminal(cb)
+    if Config.ApiSecret == '' then
+        cb(false, 'bodycam_api_secret not set')
+        return
+    end
+    local url = Config.ApiBaseUrl:gsub('/$', '') .. '/internal/fivem/ping'
+    PerformHttpRequest(url, function(code, _response)
+        if code >= 200 and code < 300 then
+            cb(true, nil)
+        else
+            cb(false, 'HTTP ' .. tostring(code))
+        end
+    end, 'GET', '', {
+        ['X-FiveM-Secret'] = Config.ApiSecret,
+    })
+end
+
 function Api.FetchBodycamSettings(discordId, cb)
     local url = Config.ApiBaseUrl:gsub('/$', '') .. '/internal/fivem/bodycam-settings/' .. discordId
     PerformHttpRequest(url, function(code, response)

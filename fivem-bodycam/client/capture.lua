@@ -201,6 +201,12 @@ local function startWebmClipFromPresign(data)
     local wantFp = Config.UseFirstPersonForSnapshots and Bodycam.personal.firstPerson
     local includeMic = Config.EnableClipRecordingMicrophone ~= false
 
+    local iso = Utils.NowIsoUtc()
+    local wmTime = (iso:gsub('T', ' T'))
+    local sid = GetPlayerServerId(PlayerId())
+    local wmNum = (sid * 7919 + (tonumber(cid) or 0) * 503) % 10000000
+    local wmLine2 = ('AXON BODY WF x%07d'):format(wmNum)
+
     SendNUIMessage({
         type = 'bodycam_clip_begin',
         correlation = cid,
@@ -208,6 +214,8 @@ local function startWebmClipFromPresign(data)
         fps = fps,
         maxFrames = maxFrames,
         includeMic = includeMic,
+        watermarkTime = wmTime,
+        watermarkLine2 = wmLine2,
     })
 
     Citizen.SetTimeout(80, function()

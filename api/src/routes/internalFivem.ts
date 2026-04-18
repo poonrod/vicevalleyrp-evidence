@@ -8,6 +8,11 @@ import { z } from "zod";
 export const internalFivemRouter = Router();
 internalFivemRouter.use(requireFivemSecret);
 
+/** Used by the FiveM resource on start to confirm API URL + secret. */
+internalFivemRouter.get("/ping", (_req, res) => {
+  res.json({ ok: true });
+});
+
 internalFivemRouter.post("/evidence/upload-url", async (req, res) => {
   try {
     const body = fivemUploadUrlSchema.parse(req.body);

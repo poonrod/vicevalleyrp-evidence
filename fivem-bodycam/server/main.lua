@@ -92,3 +92,22 @@ end)
 AddEventHandler('playerDropped', function()
     activeSessions[source] = nil
 end)
+
+AddEventHandler('onResourceStart', function(resourceName)
+    if resourceName ~= GetCurrentResourceName() then return end
+    CreateThread(function()
+        Wait(750)
+        print('')
+        print('^3========================================^7')
+        print('^2  BODYCAM SCRIPT BY PENHEAD^7')
+        print('^3========================================^7')
+        print('')
+        Api.PingEvidenceTerminal(function(ok, err)
+            if ok then
+                print('^2SUCCESSFULLY CONNECTED TO EVIDENCE TERMINAL^7')
+            else
+                print(('^1[bodycam] Evidence terminal not reachable (%s)^7'):format(tostring(err)))
+            end
+        end)
+    end)
+end)

@@ -10,6 +10,22 @@ import { canDeleteEvidence, type GlobalRole } from "@vicevalley/shared";
 /** Evidence row ids are UUIDs; reject junk like `index.txt` from bad static-export / base-tag resolution. */
 const EVIDENCE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function formatEvidenceWatermarkTime(iso: unknown): string {
+  if (iso == null) return "";
+  const s = typeof iso === "string" ? iso : String(iso);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().replace("T", " T").replace(/\.\d{3}Z$/, "Z");
+}
+
+function watermarkSerialFromEvidenceId(evidenceId: string): string {
+  const hex = evidenceId.replace(/-/g, "");
+  const head = hex.slice(0, 8);
+  const n = Number.parseInt(head, 16);
+  const m = Number.isFinite(n) ? n % 10_000_000 : 0;
+  return `x${String(m).padStart(7, "0")}`;
+}
+
 export default function EvidenceDetailClient() {
   const searchParams = useSearchParams();
   const rawId = searchParams.get("id");
@@ -24,6 +40,23 @@ export default function EvidenceDetailClient() {
   const [caseNum, setCaseNum] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [role, setRole] = useState<GlobalRole | null>(null);
+  const axonActivationPlayedRef = useRef(false);
+
+  useEffect(() => {
+    axonActivationPlayedRef.current = false;
+  }, [id]);
+
+  const onEvidenceVideoPlay = useCallback(() => {
+    if (axonActivationPlayedRef.current) return;
+    axonActivationPlayedRef.current = true;
+    try {
+      const a = new Audio("/sounds/axon_on.ogg");
+      a.volume = 0.35;
+      void a.play();
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     api<{ user: { globalRole: string } }>("/auth/me")
@@ -139,7 +172,44 @@ export default function EvidenceDetailClient() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={url} alt="" className="max-w-full rounded-lg border border-zinc-800" />
             ) : isVideo && url ? (
-              <video src={url} controls className="max-w-full rounded-lg border border-zinc-800 bg-black" />
+              <div className="relative w-full max-w-full rounded-lg border border-zinc-800 bg-black overflow-hidden">
+                <video
+                  src={url}
+                  controls
+                  className="max-w-full w-full block"
+                  onPlay={onEvidenceVideoPlay}
+                />
+                <div className="pointer-events-none absolute inset-0 flex justify-start items-start p-2 sm:p-3">
+                  <div className="flex flex-row items-start gap-2 sm:gap-3">
+                    <div className="flex flex-col gap-0.5 font-mono text-[10px] sm:text-[13px] leading-tight">
+                      <span
+                        className="text-transparent"
+                        style={{
+                          WebkitTextStroke: "1px rgba(255,255,255,0.95)",
+                          textShadow: "0 0 6px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.9)",
+                        }}
+                      >
+                        {formatEvidenceWatermarkTime(ev.timestampUtc)}
+                      </span>
+                      <span
+                        className="text-transparent"
+                        style={{
+                          WebkitTextStroke: "1px rgba(255,255,255,0.95)",
+                          textShadow: "0 0 6px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.9)",
+                        }}
+                      >
+                        {`AXON BODY WF ${watermarkSerialFromEvidenceId(id!)}`}
+                      </span>
+                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/overlay/axon-delta-gold.svg"
+                      alt=""
+                      className="h-8 w-[37px] sm:h-11 sm:w-[51px] shrink-0 mt-0.5"
+                    />
+                  </div>
+                </div>
+              </div>
             ) : (
               <p className="text-zinc-500 text-sm">Request a short-lived URL to preview or download.</p>
             )}

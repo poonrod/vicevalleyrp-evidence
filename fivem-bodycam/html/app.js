@@ -61,6 +61,60 @@ function resourceName() {
 /** Short WebM bodycam clip: frames from Lua → canvas → MediaRecorder → presigned PUT. */
 let clipSession = null;
 
+function loadClipWatermarkLogo() {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    try {
+      img.src = new URL("overlay/axon-delta-gold.svg", window.location.href).href;
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/** Burned-in corner watermark: ISO time + device line + AXON DELTA GOLD mark. */
+function drawBodycamWatermark(ctx, s, cw) {
+  if (!s || !ctx) return;
+  const pad = Math.max(10, Math.round(cw * 0.011));
+  const fontPx = Math.max(11, Math.round(cw * 0.0165));
+  const line1 = s.wmTime || "";
+  const line2 = s.wmLine2 || "AXON BODY WF x0000000";
+  ctx.save();
+  ctx.font = `${fontPx}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+  ctx.textBaseline = "top";
+  const tw1 = ctx.measureText(line1).width;
+  const tw2 = ctx.measureText(line2).width;
+  const textW = Math.max(tw1, tw2);
+  const logoW = Math.round(fontPx * 3.25);
+  let logoH = logoW;
+  if (s.logo && s.logo.complete && s.logo.naturalWidth) {
+    logoH = Math.round((logoW * s.logo.naturalHeight) / s.logo.naturalWidth);
+  }
+  const x = pad;
+  const y = pad;
+  const drawLine = (txt, ly) => {
+    ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(2, fontPx * 0.18);
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = Math.max(2, fontPx * 0.14);
+    ctx.fillStyle = "rgba(12,12,12,0.42)";
+    ctx.strokeText(txt, x, ly);
+    ctx.shadowBlur = 0;
+    ctx.fillText(txt, x, ly);
+  };
+  drawLine(line1, y);
+  drawLine(line2, y + fontPx * 1.22);
+  if (s.logo && s.logo.complete && s.logo.naturalWidth) {
+    const lx = x + textW + pad * 0.45;
+    const ly = y - fontPx * 0.08;
+    ctx.drawImage(s.logo, lx, ly, logoW, logoH);
+  }
+  ctx.restore();
+}
+
 function pickRecorderMime(withAudio) {
   if (typeof MediaRecorder === "undefined") return "";
   const opts = withAudio
@@ -118,6 +172,8 @@ async function startClipSession(d) {
   const fps = Math.max(1, Math.min(60, Number(d.fps) || 30));
   const wantMic = !!d.includeMic && typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia;
 
+  const logoPromise = loadClipWatermarkLogo();
+
   let micStream = null;
   if (wantMic) {
     try {
@@ -146,6 +202,16 @@ async function startClipSession(d) {
     });
     return;
   }
+
+  const logo = await logoPromise;
+  const wmTime =
+    typeof d.watermarkTime === "string" && d.watermarkTime
+      ? d.watermarkTime
+      : new Date().toISOString().replace("T", " T").replace(/\.\d{3}Z$/, "Z");
+  const wmLine2 =
+    typeof d.watermarkLine2 === "string" && d.watermarkLine2
+      ? d.watermarkLine2
+      : "AXON BODY WF x0000000";
 
   const videoOnly = canvas.captureStream(fps);
   const tracks = [...videoOnly.getVideoTracks()];
@@ -182,6 +248,9 @@ async function startClipSession(d) {
     mime,
     micStream,
     startMs: Date.now(),
+    wmTime,
+    wmLine2,
+    logo,
   };
 
   try {
@@ -204,6 +273,7 @@ function pushClipFrame(d) {
       canvas.height = img.naturalHeight;
     }
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    drawBodycamWatermark(ctx, clipSession, canvas.width);
   };
   img.onerror = () => {
     abortClipSession(d.correlation, "frame decode failed");

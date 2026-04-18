@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 104" width="120" height="104" aria-hidden="true">
+  <path
+    fill="#FFD60A"
+    d="M60 6c2.2 0 4.3 1.1 5.4 3.1l48 79.5c2.4 4-0.5 9.4-5.4 9.4H12c-4.9 0-7.8-5.4-5.4-9.4l48-79.5C55.7 7.1 57.8 6 60 6z"
+  />
+  <path
+    fill="#ffffff"
+    d="M28 80 Q38 48 58 42 Q48 56 52 72 Q60 58 82 52 Q68 66 54 78 Q70 64 88 58 Q72 74 48 82 Z"
+  />
+</svg>
