@@ -1,9 +1,21 @@
 CaptureClient = {}
 
+--[[
+  FiveM Lua cannot access the master game audio mixer, Mumble PCM, or per-player voice streams.
+  Combined mic + "what you hear" (game SFX + positional voice on your speakers) is captured only in NUI
+  via getUserMedia + getDisplayMedia, merged with Web Audio, encoded by MediaRecorder — same class as WebM clips.
+]]
+
 --- screenshot-basic's NUI always uses POST + multipart FormData, which does not match
 --- S3/R2 presigned PutObject URLs (PUT + raw body). We capture with its export, then PUT from our NUI.
 local pendingPresigned = {}
 local presignedCorrelation = 0
+
+local function canStartCombinedAudioRecord()
+    if not PermissionsClient.IsAllowed() then return false end
+    if not EquipmentClient.IsEquipped() then return false end
+    return true
+end
 
 local function parseClipTargetSize()
     local s = tostring(Config.ShortClipResolution or '1280x720')
@@ -148,6 +160,86 @@ local function completeAfterClipPut(cid, body)
     TriggerServerEvent('bodycam:server:completeUpload', payload)
 end
 
+local function completeAfterCombinedAudioPut(cid, body)
+    local pending = pendingPresigned[cid]
+    if not pending or not pending.combinedAudioMode then return end
+    local d = pending.data
+    local coords = pending.coords
+    local heading = pending.heading
+    local street = pending.street
+    pendingPresigned[cid] = nil
+    Bodycam.combinedAudioRecording = false
+    SetNuiFocus(false, false)
+
+    if body.ok ~= true then
+        local err = body.err or 'unknown'
+        print(('[bodycam] combined audio PUT failed: %s'):format(tostring(err)))
+        if type(err) == 'string' and #err > 0 then
+            Bodycam.Notify('~r~Combined audio: ' .. err:sub(1, 120))
+        else
+            Bodycam.Notify('~r~Combined audio upload failed')
+        end
+        return
+    end
+    local meta = d.meta or {}
+    local fileSize = tonumber(body.fileSize) or 1
+    local durationSeconds = tonumber(body.durationSeconds)
+
+    local payload = {
+        officerDiscordId = d.discordId,
+        storageKey = d.storageKey,
+        evidenceId = d.evidenceId,
+        incidentId = Bodycam.incidentId,
+        caseNumber = meta.caseNumber,
+        type = 'video',
+        captureType = 'bodycam_combined_audio_record',
+        videoTier = 'short',
+        officerName = d.officerName,
+        officerBadgeNumber = d.officerBadgeNumber,
+        officerDepartment = d.officerDepartment,
+        officerCallsign = d.officerCallsign,
+        playerServerId = GetPlayerServerId(PlayerId()),
+        timestampUtc = Utils.NowIsoUtc(),
+        fileName = meta.fileName or 'bodycam_combined.webm',
+        mimeType = 'video/webm',
+        fileSize = fileSize,
+        durationSeconds = durationSeconds,
+        codec = 'vp9',
+        locationX = coords.x,
+        locationY = coords.y,
+        locationZ = coords.z,
+        heading = heading,
+        streetName = street,
+        activationSource = 'manual_command',
+        wasAutoActivated = false,
+        preEventEvidenceAttached = false,
+        sleepingModeAtCapture = Bodycam.sleeping,
+        equippedStateAtCapture = EquipmentClient.IsEquipped(),
+        soundPlayedOnActivation = Config.EnableBodycamSounds,
+    }
+    TriggerServerEvent('bodycam:server:completeUpload', payload)
+end
+
+RegisterNUICallback('bodycam_combined_audio_put_done', function(body, cb)
+    cb({})
+    if type(body) ~= 'table' then return end
+    local cid = body.correlation
+    if type(cid) ~= 'string' and type(cid) ~= 'number' then return end
+    completeAfterCombinedAudioPut(tostring(cid), body)
+end)
+
+RegisterNUICallback('bodycam_combined_audio_cancel', function(_, cb)
+    cb({})
+    SetNuiFocus(false, false)
+    Bodycam.combinedAudioRecording = false
+    for k, v in pairs(pendingPresigned) do
+        if type(v) == 'table' and v.combinedAudioMode then
+            pendingPresigned[k] = nil
+        end
+    end
+    Bodycam.Notify('~o~Combined audio capture canceled')
+end)
+
 RegisterNUICallback('bodycam_clip_put_done', function(body, cb)
     cb({})
     if type(body) ~= 'table' then return end
@@ -200,7 +292,51 @@ local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes, c
     end)
 end
 
+local function startCombinedAudioRecordFromPresign(data)
+    if Bodycam.clipRecording then
+        Bodycam.Notify('~r~Bodycam video clip in progress')
+        return
+    end
+    if Bodycam.combinedAudioRecording then
+        Bodycam.Notify('~r~Combined audio already active')
+        return
+    end
+
+    local ped = PlayerPedId()
+    local coords = GetEntityCoords(ped)
+    local heading = GetEntityHeading(ped)
+    local street = GetStreetNameFromHashKey(GetStreetNameAtCoord(coords.x, coords.y, coords.z))
+
+    presignedCorrelation = presignedCorrelation + 1
+    local cid = tostring(presignedCorrelation)
+    local sec = math.floor(tonumber(data.combinedAudioSeconds) or 30)
+    local maxSec = tonumber(Config.CombinedAudioMaxSeconds) or 90
+    sec = math.max(5, math.min(sec, maxSec))
+
+    pendingPresigned[cid] = {
+        combinedAudioMode = true,
+        data = data,
+        coords = coords,
+        heading = heading,
+        street = street,
+    }
+    Bodycam.combinedAudioRecording = true
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        type = 'bodycam_combined_audio_begin',
+        correlation = cid,
+        url = data.url,
+        seconds = sec,
+        clipMicProcessing = (Config.ClipMicrophoneProcessing == 'ambient') and 'ambient' or 'voice',
+        clipMicrophoneDeviceId = type(Config.ClipMicrophoneDeviceId) == 'string' and Config.ClipMicrophoneDeviceId or '',
+    })
+end
+
 local function startWebmClipFromPresign(data)
+    if Bodycam.combinedAudioRecording then
+        Bodycam.Notify('~r~Combined audio capture in progress')
+        return
+    end
     local shotRes = Config.ScreenshotResourceName or 'screenshot-basic'
     local ped = PlayerPedId()
     local coords = GetEntityCoords(ped)
@@ -277,6 +413,11 @@ local function startWebmClipFromPresign(data)
 end
 
 RegisterNetEvent('bodycam:client:presignedReady', function(data)
+    if data.combinedAudioRecord then
+        startCombinedAudioRecordFromPresign(data)
+        return
+    end
+
     local shotRes = Config.ScreenshotResourceName or 'screenshot-basic'
     if GetResourceState(shotRes) ~= 'started' then
         Bodycam.Notify('~r~' .. shotRes .. ' not started')
@@ -334,6 +475,7 @@ RegisterNetEvent('bodycam:client:presignedReady', function(data)
 end)
 
 function CaptureClient.TryFinalizeWebmClip(sessionDurMs)
+    if Bodycam.combinedAudioRecording then return end
     if Bodycam.clipRecording then return end
     local capSec = math.min(Config.ShortClipMaxSeconds or 15, math.max(5, math.floor(sessionDurMs / 1000)))
     TriggerServerEvent('bodycam:server:requestUpload', {
@@ -445,6 +587,38 @@ end)
 
 RegisterCommand('bodycam_mic_devices', function()
     SendNUIMessage({ type = 'bodycam_enumerate_audio_inputs' })
+end, false)
+
+--- Mic + desktop loopback (NUI). Optional arg: duration seconds (5 .. Config.CombinedAudioMaxSeconds).
+RegisterCommand('bodycamrecord', function(_, args)
+    if not canStartCombinedAudioRecord() then
+        Bodycam.Notify('~r~Combined audio: job or equipment blocked')
+        return
+    end
+    if Bodycam.clipRecording then
+        Bodycam.Notify('~r~Bodycam clip in progress')
+        return
+    end
+    if Bodycam.combinedAudioRecording then
+        Bodycam.Notify('~r~Combined audio already running')
+        return
+    end
+
+    local maxSec = tonumber(Config.CombinedAudioMaxSeconds) or 90
+    local sec = tonumber(args[1]) or 30
+    if not sec or sec < 1 then sec = 30 end
+    sec = math.floor(math.max(5, math.min(sec, maxSec)))
+    local estBytes = math.floor(math.min(50 * 1024 * 1024, math.max(800000, sec * 520000)))
+
+    TriggerServerEvent('bodycam:server:requestUpload', {
+        fileName = 'bodycam_combined.webm',
+        mimeType = 'video/webm',
+        fileSize = estBytes,
+        captureType = 'bodycam_combined_audio_record',
+        incidentId = Bodycam.incidentId,
+        videoTier = 'short',
+        combinedAudioSeconds = sec,
+    })
 end, false)
 
 RegisterCommand('bcamsnap', function()

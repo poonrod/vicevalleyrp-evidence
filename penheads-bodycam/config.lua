@@ -130,6 +130,8 @@ end
 -- Legacy flag — real game path uses ClipAudioCaptureMode display* + getDisplayMedia (README).
 Config.EnableClipRecordingGameAudio = false
 Config.EnableLongVideoMode = false
+-- `/bodycamrecord` — max seconds (client clamps). Audio-only WebM estimate uses this for presign size.
+Config.CombinedAudioMaxSeconds = 90
 Config.ShortClipMaxSeconds = 30
 Config.MediumClipMaxSeconds = 300
 Config.LongVideoMaxSeconds = 1800

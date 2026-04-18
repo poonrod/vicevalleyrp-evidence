@@ -52,6 +52,8 @@ RegisterNetEvent('bodycam:server:requestUpload', function(meta)
             clipRecord = meta.captureType == 'bodycam_clip_stop',
             clipSeconds = tonumber(meta.clipMaxSeconds) or 12,
             clipFps = tonumber(meta.clipRecordFps) or tonumber(Config.ClipRecordFps) or 20,
+            combinedAudioRecord = meta.captureType == 'bodycam_combined_audio_record',
+            combinedAudioSeconds = tonumber(meta.combinedAudioSeconds) or 30,
         })
     end)
 end)

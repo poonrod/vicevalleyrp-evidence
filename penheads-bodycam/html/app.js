@@ -146,6 +146,272 @@ async function mergeDisplayAndMic(displayStream, micStream) {
   return { destStream: dest.stream, context: ctx };
 }
 
+/** `/bodycamrecord` — pending until officer clicks Start (Chromium user-gesture for getDisplayMedia). */
+let combinedAudioPendingPayload = null;
+let combinedAudioRunning = false;
+const combinedAudioRecordGate = document.getElementById("combinedAudioRecordGate");
+
+/**
+ * Mix microphone + optional desktop loopback. FiveM Lua never receives PCM; this runs entirely in NUI.
+ */
+async function buildMergedMicDesktopStream(micStream, desktopStream) {
+  if (micStream && desktopStream) {
+    const merged = await mergeDisplayAndMic(desktopStream, micStream);
+    if (merged?.destStream && merged.context) return merged;
+  }
+  if (!micStream) return null;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  const ctx = new Ctx();
+  await ctx.resume();
+  const dest = ctx.createMediaStreamDestination();
+  try {
+    ctx.createMediaStreamSource(micStream).connect(dest);
+  } catch {
+    try {
+      await ctx.close();
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+  if (!dest.stream.getAudioTracks().length) {
+    try {
+      await ctx.close();
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+  return { destStream: dest.stream, context: ctx };
+}
+
+function blackCanvasVideoStream() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 2;
+  canvas.height = 2;
+  const c = canvas.getContext("2d");
+  if (c) {
+    c.fillStyle = "#000000";
+    c.fillRect(0, 0, 2, 2);
+  }
+  return canvas.captureStream(1);
+}
+
+async function putWebmBlobWithTimeout(url, blob, timeoutMs) {
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "PUT",
+      body: blob,
+      headers: { "Content-Type": "video/webm" },
+      signal: ac.signal,
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || res.statusText || `HTTP_${res.status}`);
+    }
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+async function runCombinedAudioCaptureSession(d) {
+  const correlation = String(d.correlation || "");
+  const uploadUrl = d.url;
+  const seconds = Math.max(5, Math.min(600, Number(d.seconds) || 30));
+  if (!uploadUrl || !correlation) {
+    post("bodycam_combined_audio_put_done", { correlation, ok: false, err: "missing_url_or_correlation" });
+    return;
+  }
+  if (combinedAudioRunning || clipSession) {
+    post("bodycam_combined_audio_put_done", { correlation, ok: false, err: "nui_busy" });
+    return;
+  }
+  combinedAudioRunning = true;
+
+  let micStream = null;
+  let desktopStream = null;
+  let mergeCtx = null;
+  let recorder = null;
+  const hardCapMs = seconds * 1000 + 12000;
+
+  try {
+    const micProc = d.clipMicProcessing === "ambient" ? "ambient" : "voice";
+    const micDev = typeof d.clipMicrophoneDeviceId === "string" ? d.clipMicrophoneDeviceId : "";
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: clipMicAudioConstraints(micProc, micDev),
+        video: false,
+      });
+    } catch (e) {
+      post("bodycam_combined_audio_put_done", {
+        correlation,
+        ok: false,
+        err: `microphone:${String(e?.name || e?.message || e)}`,
+      });
+      return;
+    }
+
+    try {
+      desktopStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      const liveAud = desktopStream.getAudioTracks().filter((t) => t.readyState === "live");
+      if (!liveAud.length) {
+        try {
+          for (const t of desktopStream.getTracks()) t.stop();
+        } catch {
+          /* ignore */
+        }
+        desktopStream = null;
+      } else {
+        for (const vt of desktopStream.getVideoTracks()) {
+          try {
+            vt.enabled = false;
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    } catch {
+      desktopStream = null;
+    }
+
+    let merged = await buildMergedMicDesktopStream(micStream, desktopStream);
+    if (!merged?.destStream && micStream && desktopStream) {
+      merged = await buildMergedMicDesktopStream(micStream, null);
+    }
+    if (!merged?.destStream || !merged.context) {
+      post("bodycam_combined_audio_put_done", { correlation, ok: false, err: "merge_failed" });
+      return;
+    }
+    mergeCtx = merged.context;
+
+    const vOnly = blackCanvasVideoStream();
+    const audioTracks = merged.destStream.getAudioTracks();
+    const mergedStream = new MediaStream([...vOnly.getVideoTracks(), ...audioTracks]);
+
+    const mime = pickRecorderMime(audioTracks.length > 0);
+    if (!mime) {
+      post("bodycam_combined_audio_put_done", { correlation, ok: false, err: "MediaRecorder_unsupported" });
+      return;
+    }
+
+    const chunks = [];
+    recorder = new MediaRecorder(mergedStream, {
+      mimeType: mime,
+      videoBitsPerSecond: 120_000,
+      audioBitsPerSecond: 128_000,
+    });
+    recorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+    };
+
+    const started = performance.now();
+    await new Promise((resolve, reject) => {
+      let watchdog = null;
+      let settled = false;
+      const clearW = () => {
+        if (watchdog) clearTimeout(watchdog);
+        watchdog = null;
+      };
+      const finishOk = () => {
+        if (settled) return;
+        settled = true;
+        clearW();
+        resolve();
+      };
+      watchdog = setTimeout(() => {
+        try {
+          if (recorder && recorder.state !== "inactive") recorder.stop();
+        } catch {
+          /* ignore */
+        }
+        finishOk();
+      }, hardCapMs);
+      recorder.onerror = (ev) => {
+        if (settled) return;
+        settled = true;
+        clearW();
+        reject(new Error(ev.error?.message || "recorder_error"));
+      };
+      recorder.onstop = () => finishOk();
+      try {
+        recorder.start(400);
+      } catch (e) {
+        if (!settled) {
+          settled = true;
+          clearW();
+          reject(e);
+        }
+        return;
+      }
+      setTimeout(() => {
+        try {
+          if (recorder && recorder.state !== "inactive") recorder.stop();
+        } catch {
+          /* ignore */
+        }
+      }, seconds * 1000);
+    });
+
+    const durationSeconds = Math.round((performance.now() - started) / 1000);
+    try {
+      for (const t of vOnly.getVideoTracks()) t.stop();
+    } catch {
+      /* ignore */
+    }
+
+    const blob = new Blob(chunks, { type: "video/webm" });
+    if (!blob.size) {
+      post("bodycam_combined_audio_put_done", { correlation, ok: false, err: "empty_blob" });
+      return;
+    }
+
+    await putWebmBlobWithTimeout(uploadUrl, blob, Math.min(120000, Math.max(30000, seconds * 8000)));
+    post("bodycam_combined_audio_put_done", {
+      correlation,
+      ok: true,
+      fileSize: blob.size,
+      durationSeconds,
+    });
+  } catch (e) {
+    post("bodycam_combined_audio_put_done", {
+      correlation,
+      ok: false,
+      err: String(e?.message || e),
+    });
+  } finally {
+    combinedAudioRunning = false;
+    try {
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+    } catch {
+      /* ignore */
+    }
+    if (desktopStream) {
+      try {
+        for (const t of desktopStream.getTracks()) t.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (micStream) {
+      try {
+        for (const t of micStream.getTracks()) t.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (mergeCtx) {
+      try {
+        await mergeCtx.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
 window.addEventListener("message", (e) => {
   const d = e.data;
   if (d.type === "bodycam_state") {
@@ -198,6 +464,30 @@ window.addEventListener("message", (e) => {
   }
   if (d.type === "bodycam_mic_warmup") {
     void warmUpMicrophone(d);
+  }
+  if (d.type === "bodycam_combined_audio_begin") {
+    if (combinedAudioRunning || clipSession) {
+      post("bodycam_combined_audio_put_done", {
+        correlation: String(d.correlation || ""),
+        ok: false,
+        err: "nui_busy",
+      });
+      return;
+    }
+    combinedAudioPendingPayload = d;
+    combinedAudioRecordGate?.classList.remove("hidden");
+    setTimeout(() => {
+      if (
+        combinedAudioPendingPayload &&
+        String(combinedAudioPendingPayload.correlation) === String(d.correlation) &&
+        !combinedAudioRunning
+      ) {
+        combinedAudioPendingPayload = null;
+        combinedAudioRecordGate?.classList.add("hidden");
+        post("bodycam_combined_audio_cancel", {});
+      }
+    }, 120000);
+    return;
   }
   if (d.type === "bodycam_enumerate_audio_inputs") {
     void enumerateAudioInputsToGame();
@@ -413,6 +703,10 @@ function abortClipSession(correlation, errMsg) {
 
 async function startClipSession(d) {
   abortClipSession(null);
+  if (combinedAudioRunning) {
+    post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: "combined_audio_active" });
+    return;
+  }
   const canvas = document.createElement("canvas");
   const initW = Math.max(320, Math.min(1920, Number(d.clipMaxWidth) || 1280));
   const initH = Math.max(180, Math.min(1080, Number(d.clipMaxHeight) || 720));
@@ -772,4 +1066,18 @@ document.getElementById("clipAudioConsoleGrantBtn")?.addEventListener("click", (
 
 document.getElementById("clipAudioConsoleCloseBtn")?.addEventListener("click", () => {
   hideClipAudioConsoleGate();
+});
+
+document.getElementById("combinedAudioRecordStartBtn")?.addEventListener("click", () => {
+  if (!combinedAudioPendingPayload) return;
+  const p = combinedAudioPendingPayload;
+  combinedAudioPendingPayload = null;
+  combinedAudioRecordGate?.classList.add("hidden");
+  void runCombinedAudioCaptureSession(p);
+});
+
+document.getElementById("combinedAudioRecordCancelBtn")?.addEventListener("click", () => {
+  combinedAudioPendingPayload = null;
+  combinedAudioRecordGate?.classList.add("hidden");
+  post("bodycam_combined_audio_cancel", {});
 });

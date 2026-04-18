@@ -6,6 +6,8 @@ Bodycam.incidentId = nil
 Bodycam.sleeping = false
 Bodycam.sessionStartMs = nil
 Bodycam.clipRecording = false
+--- NUI-only combined mic + desktop (getDisplayMedia) session; Lua never sees PCM.
+Bodycam.combinedAudioRecording = false
 Bodycam.personal = {
     autoTaser = true,
     autoFirearm = true,

@@ -32,6 +32,21 @@
       </div>
     </div>
     <audio id="player" preload="auto" playsinline></audio>
+    <div id="combinedAudioRecordGate" class="clip-audio-console hidden" role="dialog" aria-label="Combined microphone and desktop audio">
+      <div class="clip-audio-console-panel">
+        <h2>Combined audio capture</h2>
+        <p>
+          Records your <strong>microphone</strong> plus <strong>desktop / game audio</strong> (what you hear — SFX and positional voice on your speakers).
+          FiveM <strong>Lua cannot read PCM</strong> from the game or Mumble; capture runs in this browser panel via <code>getUserMedia</code> +
+          <code>getDisplayMedia</code>.
+        </p>
+        <p class="muted">Click <strong>Start</strong> so Chromium treats the next picker as a user gesture. Choose your monitor and enable <strong>Share audio</strong> (Windows).</p>
+        <div class="clip-audio-actions">
+          <button type="button" id="combinedAudioRecordStartBtn">Start</button>
+          <button type="button" id="combinedAudioRecordCancelBtn" class="muted">Cancel</button>
+        </div>
+      </div>
+    </div>
     <div id="clipAudioConsoleGate" class="clip-audio-console hidden" role="dialog" aria-label="Clip monitor audio setup">
       <div class="clip-audio-console-panel">
         <h2>Bodycam — monitor + game audio</h2>
