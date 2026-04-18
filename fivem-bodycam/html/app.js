@@ -39,6 +39,13 @@ function stopCachedDisplayAudio() {
   cachedDisplayAudioStream = null;
 }
 
+function formatDisplayCaptureErr(e) {
+  if (typeof DOMException !== "undefined" && e instanceof DOMException) {
+    return `${e.name}: ${e.message}`;
+  }
+  return String(e?.message || e);
+}
+
 async function acquireDisplayAudioStreamInternal() {
   const gm = navigator.mediaDevices?.getDisplayMedia;
   if (!gm) throw new Error("getDisplayMedia_unavailable");
@@ -50,12 +57,9 @@ async function acquireDisplayAudioStreamInternal() {
       autoGainControl: false,
     },
   };
-  let stream;
-  try {
-    stream = await gm.call(navigator.mediaDevices, { ...base, systemAudio: "include" });
-  } catch {
-    stream = await gm.call(navigator.mediaDevices, base);
-  }
+  /* Do not pass `systemAudio: "include"` here: FiveM's CEF often throws NotAllowedError: Invalid state before
+     the picker opens. Plain constraints still show the Windows picker with "Share audio" on the monitor entry. */
+  const stream = await gm.call(navigator.mediaDevices, base);
   /* Do not stop() display video immediately — on Chromium/CEF that can invalidate loopback audio ("Invalid state"). */
   for (const vt of stream.getVideoTracks()) {
     try {
@@ -72,20 +76,20 @@ async function acquireDisplayAudioStreamInternal() {
   return stream;
 }
 
-async function primeDisplayAudioFromUserGesture() {
-  try {
-    stopCachedDisplayAudio();
-    cachedDisplayAudioStream = await acquireDisplayAudioStreamInternal();
-    persistDisplayAudioOk();
-    hideClipAudioConsoleGate();
-    return { ok: true };
-  } catch (e) {
-    const err =
-      typeof DOMException !== "undefined" && e instanceof DOMException
-        ? `${e.name}: ${e.message}`
-        : String(e?.message || e);
-    return { ok: false, err };
-  }
+/**
+ * Must be started synchronously from a real pointer click (no async wrapper before getDisplayMedia),
+ * or Chromium revokes user activation and getDisplayMedia throws NotAllowedError / Invalid state.
+ */
+function primeDisplayAudioFromUserGesture() {
+  stopCachedDisplayAudio();
+  return acquireDisplayAudioStreamInternal()
+    .then((stream) => {
+      cachedDisplayAudioStream = stream;
+      persistDisplayAudioOk();
+      hideClipAudioConsoleGate();
+      return { ok: true };
+    })
+    .catch((e) => ({ ok: false, err: formatDisplayCaptureErr(e) }));
 }
 
 async function obtainDisplayStreamForClip() {
@@ -98,7 +102,7 @@ async function obtainDisplayStreamForClip() {
     const stream = await acquireDisplayAudioStreamInternal();
     return { stream, ephemeral: true };
   } catch (e) {
-    return { stream: null, ephemeral: false, err: String(e?.message || e) };
+    return { stream: null, ephemeral: false, err: formatDisplayCaptureErr(e) };
   }
 }
 
@@ -734,10 +738,7 @@ document.getElementById("save").addEventListener("click", () => {
 });
 
 document.getElementById("clipAudioConsoleGrantBtn")?.addEventListener("click", () => {
-  void (async () => {
-    const r = await primeDisplayAudioFromUserGesture();
-    post("bodycam_display_audio_result", r);
-  })();
+  void primeDisplayAudioFromUserGesture().then((r) => post("bodycam_display_audio_result", r));
 });
 
 document.getElementById("clipAudioConsoleCloseBtn")?.addEventListener("click", () => {
