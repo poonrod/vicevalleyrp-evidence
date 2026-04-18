@@ -84,6 +84,23 @@ function Bodycam.SetActive(on, sourceKind)
                 CaptureClient.TryFinalizeWebmClip(sessionDurMs)
             end)
         end
+    elseif was
+        and not on
+        and sessionStart
+        and not Bodycam.clipRecording
+        and sourceKind == 'manual_off'
+        and not Config.EnableClipMode
+        and Config.StartCombinedAudioAfterManualBodycamOffWhenNoClip
+    then
+        local sessionDurMs = GetGameTimer() - sessionStart
+        Bodycam.sessionStartMs = nil
+        local minMs = (Config.ClipMinActiveSeconds or 4) * 1000
+        if sessionDurMs >= minMs then
+            CreateThread(function()
+                Wait(400)
+                CaptureClient.TryStartCombinedAudioRecord(nil)
+            end)
+        end
     elseif not on then
         Bodycam.sessionStartMs = nil
     end

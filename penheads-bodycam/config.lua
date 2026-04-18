@@ -15,13 +15,14 @@ Config.ToggleKeybindCommand = "+togglebodycam"
 Config.ToggleKeybindDefault = "F10"
 Config.ToggleKeybindDescription = "Toggle Body Camera"
 
--- Combined mic + desktop audio WebM (NUI). Same pattern as toggle: bind in GTA Settings → Key Bindings → FiveM.
-Config.EnableCombinedAudioRecordKeybind = true
+-- Optional second hotkey: standalone mic+desktop WebM (default off; use F10+clip or StartCombinedAudioAfterManualBodycamOffWhenNoClip).
+Config.EnableCombinedAudioRecordKeybind = false
 Config.CombinedAudioRecordKeybindCommand = "+bodycamrecord"
 Config.CombinedAudioRecordKeybindDefault = "F9"
 Config.CombinedAudioRecordKeybindDescription = "Bodycam combined audio record (mic + desktop)"
--- Recording length when using the keybind (seconds; clamped by CombinedAudioMaxSeconds).
 Config.CombinedAudioRecordKeybindSeconds = 30
+-- One F10 workflow when clip mode is OFF: after manual bodycam off, start combined-audio capture (no second bind).
+Config.StartCombinedAudioAfterManualBodycamOffWhenNoClip = false
 
 Config.EnableBodycamConfigMenu = true
 Config.BodycamConfigCommand = "bcamconfig"

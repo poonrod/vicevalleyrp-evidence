@@ -77,11 +77,12 @@ set bodycam_framework "c7fw"
 
 | Input | Action |
 |--------|--------|
-| `F10` (default) | Toggle bodycam (`+togglebodycam`) |
+| **F10** (default) | **Toggle bodycam** (`+togglebodycam`). HUD, snapshots, incident. With **`EnableClipMode`**, **turning off** starts the **video WebM clip** (mic + optional desktop audio per `ClipAudioCaptureMode`) — usual **one-key** AV evidence. |
 | `/bodycam` | Toggle (if enabled in config) |
 | `/bcamsnap` | Manual screenshot while bodycam **on** |
 | `/bcamconfig` | NUI settings (sleeping mode, auto taser/firearm, etc.) |
-| Keybind (default **F9**) | **Combined mic + desktop/game audio** WebM — same pattern as bodycam toggle: **Settings → Key Bindings → FiveM** to change. Config: `CombinedAudioRecordKeybindCommand`, `CombinedAudioRecordKeybindDefault`, `CombinedAudioRecordKeybindSeconds`, `EnableCombinedAudioRecordKeybind`. Press key → click **Start** in the panel → monitor + **Share audio**. |
+| Optional second bind (`EnableCombinedAudioRecordKeybind`, default **off**) | Standalone **mic + desktop** WebM only — extra key (e.g. F9) if you need that capture without clip mode / without waiting for bodycam off. |
+| **One F10, no clip mode** | Set **`StartCombinedAudioAfterManualBodycamOffWhenNoClip = true`** and **`EnableClipMode = false`**: **manual** bodycam **off** then opens combined-audio capture (click **Start**, share monitor + audio). |
 | F8: `bodycamclipaudio` | Clip monitor / system audio setup (only when `ClipAudioCaptureMode` is `display` or `display_plus_mic`; command from `Config.BodycamClipAudioConsoleCommand`) |
 | F8: `bodycamclipaudio_clear` | Clear saved clip monitor-audio preference (`<command>_clear`) |
 | F8: `bodycam_mic_devices` | Print audio input **`deviceId`** lines for **`ClipMicrophoneDeviceId`** / **`bodycam_clip_mic_device_id`** (run after bodycam was on once so labels can populate) |
