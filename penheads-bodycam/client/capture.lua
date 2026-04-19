@@ -99,7 +99,7 @@ local function completeAfterClipPut(cid, body)
         streetName = street,
         activationSource = 'manual_command',
         wasAutoActivated = false,
-        preEventEvidenceAttached = false,
+        preEventEvidenceAttached = Config.EnableClipPreRoll == true,
         sleepingModeAtCapture = Bodycam.sleeping,
         equippedStateAtCapture = EquipmentClient.IsEquipped(),
         soundPlayedOnActivation = Config.EnableBodycamSounds,
@@ -193,6 +193,23 @@ RegisterNUICallback('bodycam_clip_put_done', function(body, cb)
     local cid = body.correlation
     if type(cid) ~= 'string' and type(cid) ~= 'number' then return end
     completeAfterClipPut(tostring(cid), body)
+end)
+
+RegisterNUICallback('bodycam_clip_live_frames_begin', function(body, cb)
+    cb({})
+    if type(body) ~= 'table' then return end
+    local cid = tostring(body.correlation or '')
+    if cid == '' then return end
+    local pend = pendingPresigned[cid]
+    if not pend or not pend.clipMode then return end
+    Citizen.SetTimeout(80, function()
+        local p2 = pendingPresigned[cid]
+        if not p2 or not p2.clipMode then return end
+        if p2.wantClipHoldFp then
+            CameraClient.BeginClipSessionFirstPerson()
+        end
+        captureClipFrame(0, p2.maxFrames, cid, p2.data, p2.wantFpPerFrame, p2.gap, p2.shotRes, p2.wantClipHoldFp)
+    end)
 end)
 
 local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes, clipHoldFp)
@@ -321,16 +338,16 @@ local function startWebmClipFromPresign(data)
     local fps = math.max(1, math.min(fpsMax, requested))
     local sec = math.max(3, math.min(tonumber(data.clipSeconds) or 12, Config.ShortClipMaxSeconds or 30))
     local cap = math.max(60, math.floor(tonumber(Config.ClipMaxFramesCap) or 720))
-    local maxFrames = math.min(cap, math.ceil(sec * fps))
+    local psf = math.max(1, math.floor(tonumber(Config.PreRollSampleFps) or 1))
+    local prs = math.max(0, math.floor(tonumber(Config.PreRollSeconds) or 0))
+    local preRollOut = 0
+    if Config.EnableClipPreRoll and prs > 0 then
+        preRollOut = math.floor(prs * fps / psf)
+    end
+    local liveCap = math.max(30, cap - preRollOut)
+    local maxFrames = math.min(liveCap, math.ceil(sec * fps))
     local gap = math.max(16, math.floor(1000 / fps))
 
-    pendingPresigned[cid] = {
-        clipMode = true,
-        data = data,
-        coords = coords,
-        heading = heading,
-        street = street,
-    }
     Bodycam.clipRecording = true
 
     -- First-person **footage**: UseFirstPersonForClipRecording. Player POV: "hold" = one FP for whole burst;
@@ -342,6 +359,19 @@ local function startWebmClipFromPresign(data)
     local wantClipHoldFp = clipWantsFirstPerson and (Config.ClipFirstPersonHoldWhileRecording == true)
     local wantFpPerFrame = clipWantsFirstPerson and not wantClipHoldFp
     local includeMic = Config.EnableClipRecordingMicrophone ~= false
+
+    pendingPresigned[cid] = {
+        clipMode = true,
+        data = data,
+        coords = coords,
+        heading = heading,
+        street = street,
+        maxFrames = maxFrames,
+        gap = gap,
+        shotRes = shotRes,
+        wantFpPerFrame = wantFpPerFrame,
+        wantClipHoldFp = wantClipHoldFp,
+    }
 
     local iso = Utils.NowIsoUtc()
     local wmTime = (iso:gsub('T', ' T'))
@@ -375,14 +405,9 @@ local function startWebmClipFromPresign(data)
         clipMicProcessing = (Config.ClipMicrophoneProcessing == 'ambient') and 'ambient' or 'voice',
         clipAudioCaptureMode = capMode,
         clipMicrophoneDeviceId = type(Config.ClipMicrophoneDeviceId) == 'string' and Config.ClipMicrophoneDeviceId or '',
+        enableClipPreRoll = Config.EnableClipPreRoll == true,
+        preRollSampleFps = psf,
     })
-
-    Citizen.SetTimeout(80, function()
-        if wantClipHoldFp then
-            CameraClient.BeginClipSessionFirstPerson()
-        end
-        captureClipFrame(0, maxFrames, cid, data, wantFpPerFrame, gap, shotRes, wantClipHoldFp)
-    end)
 end
 
 RegisterNetEvent('bodycam:client:presignedReady', function(data)
@@ -408,7 +433,11 @@ end)
 function CaptureClient.TryFinalizeWebmClip(sessionDurMs)
     if Bodycam.combinedAudioRecording then return end
     if Bodycam.clipRecording then return end
-    local capSec = math.min(Config.ShortClipMaxSeconds or 15, math.max(5, math.floor(sessionDurMs / 1000)))
+    local liveSec = math.max(5, math.floor(sessionDurMs / 1000))
+    local pre = (Config.EnableClipPreRoll and tonumber(Config.PreRollSeconds)) or 0
+    pre = math.max(0, math.floor(pre))
+    local maxPolicy = Config.ShortClipMaxSeconds or 30
+    local capSec = pre + math.min(maxPolicy, liveSec)
     TriggerServerEvent('bodycam:server:requestUpload', {
         fileName = 'bodycam_clip.webm',
         mimeType = 'video/webm',

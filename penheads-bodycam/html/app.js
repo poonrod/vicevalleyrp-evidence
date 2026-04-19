@@ -527,6 +527,19 @@ window.addEventListener("message", (e) => {
   if (d.type === "bodycam_enumerate_audio_inputs") {
     void enumerateAudioInputsToGame();
   }
+  if (d.type === "bodycam_preroll_ring_push") {
+    if (typeof d.dataUrl === "string" && d.dataUrl.startsWith("data:")) {
+      preRollRing.push(d.dataUrl);
+      const maxN = Math.max(4, Math.min(240, Number(d.ringMax) || 40));
+      while (preRollRing.length > maxN) preRollRing.shift();
+    }
+    return;
+  }
+  if (d.type === "bodycam_preroll_freeze") {
+    frozenPreRollUrls = [...preRollRing];
+    preRollRing.length = 0;
+    return;
+  }
   if (d.type === "bodycam_clip_begin") {
     void startClipSession(d);
   }
@@ -559,6 +572,10 @@ function resourceName() {
 
 /** Short WebM bodycam clip: frames from Lua → canvas → MediaRecorder → presigned PUT. */
 let clipSession = null;
+/** Rolling JPEG data URLs while bodycam is off (Lua pushes). */
+let preRollRing = [];
+/** Snapshot at bodycam ON — prepended into the clip after MediaRecorder starts. */
+let frozenPreRollUrls = [];
 
 function clipMicAudioConstraints(processing, deviceId) {
   const ambient = processing === "ambient";
@@ -695,6 +712,9 @@ function stopClipMic(s) {
 function abortClipSession(correlation, errMsg) {
   const s = clipSession;
   clipSession = null;
+  if (correlation != null && correlation !== "") {
+    frozenPreRollUrls.length = 0;
+  }
   stopClipMic(s);
   if (s && s.recorder && s.recorder.state !== "inactive") {
     try {
@@ -705,6 +725,41 @@ function abortClipSession(correlation, errMsg) {
   }
   if (correlation != null && correlation !== "") {
     post("bodycam_clip_put_done", { correlation: String(correlation), ok: false, err: errMsg || "aborted" });
+  }
+}
+
+/**
+ * Draw one sampled pre-roll JPEG for `repeats` encoder frames at `fps` (time-stretches low sample rate).
+ */
+async function drawPreRollStrip(dataUrl, repeats, fps, correlation) {
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error("preroll frame decode failed"));
+    im.src = dataUrl;
+  });
+  const frameMs = 1000 / fps;
+  for (let r = 0; r < repeats; r++) {
+    if (!clipSession || clipSession.correlation !== String(correlation)) return;
+    const { canvas, ctx } = clipSession;
+    const maxW = clipSession.clipMaxWidth || 1280;
+    const maxH = clipSession.clipMaxHeight || 720;
+    let tw = img.naturalWidth;
+    let th = img.naturalHeight;
+    if (tw > maxW || th > maxH) {
+      const scale = Math.min(maxW / tw, maxH / th);
+      tw = Math.max(1, Math.round(tw * scale));
+      th = Math.max(1, Math.round(th * scale));
+    }
+    if (canvas.width !== tw || canvas.height !== th) {
+      canvas.width = tw;
+      canvas.height = th;
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, tw, th);
+    drawBodycamWatermark(ctx, clipSession, canvas.width);
+    await new Promise((res) => setTimeout(res, frameMs));
   }
 }
 
@@ -883,7 +938,29 @@ async function startClipSession(d) {
       ephemeralDisplayStream: displayEphemeral ? displayStream : null,
     });
     post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: String(err) });
+    return;
   }
+
+  await new Promise((r) => setTimeout(r, 80));
+
+  const sampleFps = Math.max(0.25, Math.min(10, Number(d.preRollSampleFps) || 1));
+  const prOn = !!d.enableClipPreRoll;
+  try {
+    if (prOn && frozenPreRollUrls.length > 0) {
+      const repeats = Math.max(1, Math.round(fps / sampleFps));
+      const urls = [...frozenPreRollUrls];
+      for (const dataUrl of urls) {
+        if (!clipSession || clipSession.correlation !== String(d.correlation)) return;
+        await drawPreRollStrip(dataUrl, repeats, fps, d.correlation);
+      }
+    }
+  } catch (e) {
+    abortClipSession(d.correlation, String(e));
+    return;
+  }
+  frozenPreRollUrls.length = 0;
+
+  post("bodycam_clip_live_frames_begin", { correlation: d.correlation });
 }
 
 function pushClipFrame(d) {

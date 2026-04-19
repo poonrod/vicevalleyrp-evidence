@@ -65,7 +65,7 @@ export const DEFAULT_RETENTION_SETTINGS: RetentionSettings = {
   shortClipMaxSeconds: 30,
   mediumClipMaxSeconds: 300,
   longVideoMaxSeconds: 1800,
-  maxUploadSizeMB: 160,
+  maxUploadSizeMB: 220,
   shortClipResolution: "1920x1080",
   shortClipBitrateKbps: 22000,
   shortClipFps: 30,

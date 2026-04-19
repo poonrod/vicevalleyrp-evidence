@@ -76,6 +76,9 @@ function Bodycam.SetActive(on, sourceKind)
 
     if on then
         Bodycam.sessionStartMs = GetGameTimer()
+        if Config.EnableClipMode and Config.EnableClipPreRoll then
+            SendNUIMessage({ type = 'bodycam_preroll_freeze' })
+        end
         TriggerServerEvent('bodycam:server:getOrCreateIncident')
         if Config.EnableClipMode
             and Config.ClipDisplayAudioSetupHint ~= false

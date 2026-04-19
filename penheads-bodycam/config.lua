@@ -90,6 +90,12 @@ Config.RestorePreviousCameraModeOnDisable = true
 -- rapid internal frame grabs (screenshot-basic). **Video-only:** keep this true or no evidence is saved.
 -- Target FPS: screenshot-basic latency usually caps real throughput below this; tune if stuttery.
 Config.EnableClipMode = true
+-- Rolling buffer (screenshots while bodycam is OFF) prepended to the WebM on save — ~PreRollSeconds of wall time at PreRollSampleFps.
+-- CPU/network cost: keep sample FPS modest (1–2). Requires screenshot-basic.
+Config.EnableClipPreRoll = true
+Config.PreRollSeconds = 30
+Config.PreRollSampleFps = 1
+Config.PreRollJpegQuality = 0.72
 -- Minimum bodycam **session** length (seconds) before we request a clip upload at all (aligns with short-clip policy).
 Config.ClipMinActiveSeconds = 5
 -- Minimum **recorded WebM** length (seconds); clips shorter than this are discarded (NUI) and the player is notified.
@@ -101,9 +107,10 @@ Config.MediumClipRecordFps = 30
 Config.LongVideoRecordFps = 30
 Config.ClipRecordFps = 30
 Config.ClipRecordFpsMax = 30
--- ShortClipMaxSeconds (30) * target FPS + headroom; avoids oversized buffers.
-Config.ClipMaxFramesCap = 1000
-Config.ClipEstimatedMaxMB = 220
+-- ShortClipMaxSeconds (30) * target FPS + preroll headroom (30s @ 30fps = 900) + live burst.
+Config.ClipMaxFramesCap = 1800
+-- Presign hint: allow preroll + max live clip (raise API maxUploadSizeMB if uploads reject).
+Config.ClipEstimatedMaxMB = 200
 -- When true, WebM clip **frames** use a first-person angle (chest-cam style). Turn off for third-person clips.
 Config.UseFirstPersonForClipRecording = true
 -- When true, the **player camera** stays in first person for the whole clip burst (one switch in/out — no strobe).
@@ -152,8 +159,8 @@ Config.CombinedAudioMaxSeconds = 90
 Config.ShortClipMaxSeconds = 30
 Config.MediumClipMaxSeconds = 300
 Config.LongVideoMaxSeconds = 1800
-Config.MaxClipFileSizeMB = 250
--- 1080p @ high bitrate: maximum practical WebM quality for evidence (ensure API maxUploadSizeMB covers ClipEstimatedMaxMB).
+Config.MaxClipFileSizeMB = 220
+-- 1080p @ high bitrate: maximum practical WebM quality for evidence (ensure API maxUploadSizeMB >= ClipEstimatedMaxMB).
 Config.ShortClipResolution = "1920x1080"
 Config.ShortClipBitrateKbps = 22000
 Config.MediumClipResolution = "1920x1080"
