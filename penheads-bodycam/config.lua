@@ -112,6 +112,9 @@ Config.ClipFirstPersonRequiresSnapshotToggle = false
 Config.ClipJpegQuality = 0.88
 -- Mix the player's real microphone (browser getUserMedia) into the WebM when supported.
 Config.EnableClipRecordingMicrophone = true
+-- If true, NUI warms up the mic when bodycam turns ON (Chromium may show a permission prompt early).
+-- If false, the first mic prompt usually appears when the WebM clip starts (turn bodycam off with clip mode on).
+Config.ClipMicrophoneWarmupOnActivate = false
 -- Clip audio source (see README "Game + voice chat audio"):
 --   mic = microphone only (getUserMedia).
 --   display = Windows monitor / "Entire screen" loopback via browser screen share (game + default output, incl. typical Mumble/pma-voice to headphones).

@@ -524,7 +524,7 @@ RegisterNUICallback('bodycam_mic_warmup_result', function(body, cb)
     cb({})
     if type(body) ~= 'table' then return end
     if body.ok == true then
-        print('^2[bodycam] Microphone allowed — clip audio will be recorded when supported.^7')
+        print('^2[bodycam] Microphone allowed - clip audio will be recorded when supported.^7')
         return
     end
     print('^3[bodycam] Microphone not available: ' .. tostring(body.err or 'denied') .. '^7')
@@ -539,11 +539,11 @@ RegisterNUICallback('bodycam_display_audio_result', function(body, cb)
         return
     end
     local err = tostring(body.err or 'denied')
-    Bodycam.Notify('~o~Bodycam: system audio not granted — ' .. err)
+    Bodycam.Notify('~o~Bodycam: system audio not granted - ' .. err)
     local el = err:lower()
     -- Do not treat every NotAllowedError as CEF: "Permission denied" is often user dismissed / blocked the picker.
     if el:find('invalid state', 1, true) then
-        print('^3[bodycam] getDisplayMedia failed with Invalid state after the dialog — common FiveM NUI/CEF bug. Reliable workaround: set Config.ClipAudioCaptureMode to ^"mic^" in penheads-bodycam/config.lua, or server.cfg: setr bodycam_clip_audio_mode mic^7')
+        print('^3[bodycam] getDisplayMedia failed with Invalid state after the dialog - common FiveM NUI/CEF bug. Reliable workaround: set Config.ClipAudioCaptureMode to ^"mic^" in penheads-bodycam/config.lua, or server.cfg: setr bodycam_clip_audio_mode mic^7')
     elseif el:find('no_system_audio_track', 1, true) then
         print('^3[bodycam] Share ran but no audio track. In the picker choose the monitor running GTA and enable Share audio (Windows). Or use setr bodycam_clip_audio_mode mic for mic-only clips.^7')
     elseif el:find('getdisplaymedia_unavailable', 1, true) then
@@ -561,7 +561,7 @@ RegisterNUICallback('bodycam_clip_audio_fallback', function(body, cb)
     if GetConvar('bodycam_debug', '0') == '1' then
         print(('[bodycam] clip audio fallback: %s'):format(json.encode(body)))
     end
-    Bodycam.Notify('~o~Clip: no system loopback — saving microphone audio only')
+    Bodycam.Notify('~o~Clip: no system loopback - saving microphone audio only')
 end)
 
 RegisterNUICallback('bodycam_enumerate_audio_inputs_result', function(body, cb)
