@@ -84,18 +84,41 @@ async function acquireDisplayAudioStreamInternal() {
  * or Chromium revokes user activation and getDisplayMedia throws NotAllowedError / Invalid state.
  */
 function primeDisplayAudioFromUserGesture() {
-  /* Avoid stop() on a null cache; stopping an ended stream right before getDisplayMedia may upset some CEF builds. */
-  if (cachedDisplayAudioStream) {
-    stopCachedDisplayAudio();
-  }
+  const prior = cachedDisplayAudioStream;
+  /* Do not stop prior tracks before getDisplayMedia — FiveM CEF often throws Invalid state if we do. */
+  cachedDisplayAudioStream = null;
+
   return acquireDisplayAudioStreamInternal()
     .then((stream) => {
+      if (prior) {
+        try {
+          for (const t of prior.getTracks()) t.stop();
+        } catch {
+          /* ignore */
+        }
+      }
       cachedDisplayAudioStream = stream;
       persistDisplayAudioOk();
       hideClipAudioConsoleGate();
       return { ok: true };
     })
-    .catch((e) => ({ ok: false, err: formatDisplayCaptureErr(e) }));
+    .catch((e) => {
+      const errStr = formatDisplayCaptureErr(e);
+      const priorAudioLive =
+        prior &&
+        typeof prior.getAudioTracks === "function" &&
+        prior.getAudioTracks().some((t) => t.readyState === "live");
+      if (priorAudioLive) {
+        cachedDisplayAudioStream = prior;
+      } else if (prior) {
+        try {
+          for (const t of prior.getTracks()) t.stop();
+        } catch {
+          /* ignore */
+        }
+      }
+      return { ok: false, err: errStr };
+    });
 }
 
 async function obtainDisplayStreamForClip() {
@@ -240,20 +263,8 @@ async function runCombinedAudioCaptureSession(d) {
   try {
     const micProc = d.clipMicProcessing === "ambient" ? "ambient" : "voice";
     const micDev = typeof d.clipMicrophoneDeviceId === "string" ? d.clipMicrophoneDeviceId : "";
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: clipMicAudioConstraints(micProc, micDev),
-        video: false,
-      });
-    } catch (e) {
-      post("bodycam_combined_audio_put_done", {
-        correlation,
-        ok: false,
-        err: `microphone:${String(e?.name || e?.message || e)}`,
-      });
-      return;
-    }
 
+    /* getDisplayMedia must run before any other await — otherwise Chromium drops user activation (Invalid state in CEF). */
     try {
       desktopStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       const liveAud = desktopStream.getAudioTracks().filter((t) => t.readyState === "live");
@@ -275,6 +286,28 @@ async function runCombinedAudioCaptureSession(d) {
       }
     } catch {
       desktopStream = null;
+    }
+
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: clipMicAudioConstraints(micProc, micDev),
+        video: false,
+      });
+    } catch (e) {
+      if (desktopStream) {
+        try {
+          for (const t of desktopStream.getTracks()) t.stop();
+        } catch {
+          /* ignore */
+        }
+        desktopStream = null;
+      }
+      post("bodycam_combined_audio_put_done", {
+        correlation,
+        ok: false,
+        err: `microphone:${String(e?.name || e?.message || e)}`,
+      });
+      return;
     }
 
     let merged = await buildMergedMicDesktopStream(micStream, desktopStream);
@@ -463,9 +496,6 @@ window.addEventListener("message", (e) => {
     } catch {
       /* missing file */
     }
-  }
-  if (d.type === "bodycam_presigned_put") {
-    void runPresignedPut(d);
   }
   if (d.type === "bodycam_mic_warmup") {
     void warmUpMicrophone(d);
@@ -996,44 +1026,6 @@ async function finalizeClipSession() {
     post("bodycam_clip_put_done", { correlation: s.correlation, ok: true, fileSize: blob.size, durationSeconds: finalSeconds });
   } catch (err) {
     post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: String(err), durationSeconds: finalSeconds });
-  }
-}
-
-/** Presigned S3/R2 URLs require PUT + raw body; screenshot-basic only POSTs multipart. */
-async function runPresignedPut(d) {
-  const { correlation, url, contentType, dataUrl } = d;
-  if (!correlation || !url || !dataUrl) {
-    post("bodycam_put_done", { correlation: correlation || "", ok: false, err: "missing correlation/url/dataUrl" });
-    return;
-  }
-  let blob;
-  try {
-    blob = await (await fetch(dataUrl)).blob();
-  } catch (e) {
-    post("bodycam_put_done", { correlation, ok: false, err: String(e) });
-    return;
-  }
-  const ct = contentType || "image/jpeg";
-  try {
-    const res = await fetch(url, {
-      method: "PUT",
-      headers: { "Content-Type": ct },
-      body: blob,
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      post("bodycam_put_done", {
-        correlation,
-        ok: false,
-        err: t || res.statusText,
-        status: res.status,
-        fileSize: blob.size,
-      });
-      return;
-    }
-    post("bodycam_put_done", { correlation, ok: true, fileSize: blob.size });
-  } catch (e) {
-    post("bodycam_put_done", { correlation, ok: false, err: String(e), fileSize: blob.size });
   }
 }
 

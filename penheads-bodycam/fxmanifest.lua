@@ -3,7 +3,7 @@ game 'gta5'
 
 name 'penheads-bodycam'
 author 'Vice Valley RP'
-description 'Bodycam evidence — MVP screenshot pipeline with secure API upload'
+description 'Bodycam evidence — WebM video clips with secure API upload'
 version '1.0.0'
 
 lua54 'yes'
@@ -19,7 +19,6 @@ client_scripts {
     'client/equipment.lua',
     'client/camera.lua',
     'client/audio.lua',
-    'client/prebuffer.lua',
     'client/detection.lua',
     'client/nui.lua',
     'client/capture.lua',

@@ -153,8 +153,7 @@ See `@vicevalley/shared` and `docs/SETUP_GUIDE.md` for promotion workflow.
 
 ## Honest MVP scope
 
-- **Evidence capture**: screenshots via **screenshot-basic** + **presigned PUT** (verify compatibility with your screenshot resource).  
-- **Pre-event “buffer”**: **rolling snapshots** while monitoring — **not** retroactive continuous video.  
+- **Evidence capture**: **WebM clips** (frame grabs via **screenshot-basic** + NUI encode) + **presigned PUT**; optional combined-audio WebM.  
 - **Video tiers / chunking**: modeled in **DB + admin settings**; native long recording is **not** claimed as fully implemented in Lua.
 
 ## Further reading

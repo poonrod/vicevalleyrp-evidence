@@ -19,6 +19,11 @@ end
 RegisterNetEvent('bodycam:server:requestUpload', function(meta)
     local src = source
     if not Permissions.IsLawEnforcement(src) then return end
+    local capType = tostring(meta and meta.captureType or '')
+    if capType ~= 'bodycam_clip_stop' and capType ~= 'bodycam_combined_audio_record' then
+        TriggerClientEvent('bodycam:client:notify', src, '~r~Only video evidence is supported')
+        return
+    end
     local discordId = Framework.GetDiscordId(src)
     if not discordId then
         TriggerClientEvent('bodycam:client:notify', src, '~r~No Discord identifier')
@@ -34,10 +39,10 @@ RegisterNetEvent('bodycam:server:requestUpload', function(meta)
         officerBadgeNumber = badge,
         officerDepartment = dept,
         officerCallsign = cs,
-        fileName = meta.fileName or 'capture.jpg',
-        mimeType = meta.mimeType or 'image/jpeg',
+        fileName = meta.fileName or 'bodycam_clip.webm',
+        mimeType = meta.mimeType or 'video/webm',
         fileSize = meta.fileSize or 500000,
-        captureType = meta.captureType or 'manual_snapshot',
+        captureType = meta.captureType or 'bodycam_clip_stop',
         incidentId = meta.incidentId,
         caseNumber = meta.caseNumber,
         videoTier = meta.videoTier,

@@ -28,9 +28,9 @@ end
 
 function CameraClient.EndSnapshotFirstPerson()
     if snapshotSaved == nil then return end
-    if Config.RestorePreviousCameraModeOnDisable then
-        SetFollowPedCamViewMode(snapshotSaved)
-    end
+    -- Always restore: temporary FP for screenshots must not depend on
+    -- RestorePreviousCameraModeOnDisable (that flag is only for ForceFirstPersonWhileBodycamActive).
+    SetFollowPedCamViewMode(snapshotSaved)
     snapshotSaved = nil
 end
 
@@ -51,7 +51,7 @@ end
 function CameraClient.EndClipSessionFirstPerson()
     if not clipFpActive then return end
     clipFpActive = false
-    if clipFpSaved ~= nil and Config.RestorePreviousCameraModeOnDisable then
+    if clipFpSaved ~= nil then
         SetFollowPedCamViewMode(clipFpSaved)
     end
     clipFpSaved = nil

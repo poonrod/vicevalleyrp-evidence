@@ -38,10 +38,6 @@ Config.PlaySoundOnAutoActivation = true
 Config.EnableAutoActivation = true
 Config.AutoActivateOnTaser = true
 Config.AutoActivateOnFirearm = true
-Config.PreEventWindowSeconds = 30
-Config.PreEventSnapshotIntervalSeconds = 5
-Config.EnableMonitoringMode = true
-Config.RequireEligibleJobForMonitoring = true
 Config.ContinueCaptureAfterAutoActivation = true
 Config.AutoActivationCooldownSeconds = 60
 Config.AutoActivationCreatesIncidentMarker = true
@@ -86,28 +82,28 @@ Config.ShowEquippedStateWarnings = true
 -- Camera
 -- If true, keeps follow-cam in first person the whole time the bodycam is on (gameplay POV).
 Config.ForceFirstPersonWhileBodycamActive = false
--- If true (and personal "first person capture" is on), briefly switches to first person only for each screenshot so footage matches a chest-mounted camera; then restores prior view mode.
-Config.UseFirstPersonForSnapshots = true
+-- Applies when turning bodycam off with ForceFirstPersonWhileBodycamActive; clip FP angles always restore.
 Config.RestorePreviousCameraModeOnDisable = true
 
 -- Video tiers (policy enforced server/API; client hints for UX)
 -- When true, turning bodycam off records a short WebM (canvas + MediaRecorder in NUI) from
--- rapid screenshots, and periodic JPEG snapshots are disabled while this is true.
+-- rapid internal frame grabs (screenshot-basic). **Video-only:** keep this true or no evidence is saved.
 -- Target FPS: screenshot-basic latency usually caps real throughput below this; tune if stuttery.
 Config.EnableClipMode = true
 -- Minimum bodycam **session** length (seconds) before we request a clip upload at all (aligns with short-clip policy).
 Config.ClipMinActiveSeconds = 5
 -- Minimum **recorded WebM** length (seconds); clips shorter than this are discarded (NUI) and the player is notified.
 Config.ClipMinUploadSeconds = 5
--- Clip FPS: higher = smoother motion; screenshot-basic latency may cap real FPS below this.
+-- Clip FPS: 24 is easier on screenshot-basic + NUI encoder than 30 (less hitching / gameplay lag).
 -- Tier targets (short = bodycam WebM; medium/long for policy / future uploads). ClipRecord* mirrors short.
-Config.ShortClipRecordFps = 30
-Config.MediumClipRecordFps = 30
-Config.LongVideoRecordFps = 30
-Config.ClipRecordFps = 30
-Config.ClipRecordFpsMax = 30
-Config.ClipMaxFramesCap = 960
-Config.ClipEstimatedMaxMB = 96
+Config.ShortClipRecordFps = 24
+Config.MediumClipRecordFps = 24
+Config.LongVideoRecordFps = 24
+Config.ClipRecordFps = 24
+Config.ClipRecordFpsMax = 24
+-- ShortClipMaxSeconds (30) * target FPS + small headroom; avoids oversized buffers.
+Config.ClipMaxFramesCap = 800
+Config.ClipEstimatedMaxMB = 64
 -- When true, WebM clip **frames** use a first-person angle (chest-cam style). Turn off for third-person clips.
 Config.UseFirstPersonForClipRecording = true
 -- When true, the **player camera** stays in first person for the whole clip (one long switch). When false
@@ -116,8 +112,8 @@ Config.UseFirstPersonForClipRecording = true
 Config.ClipFirstPersonHoldWhileRecording = false
 -- If true, clip first-person also requires the personal "First-person capture" toggle in /bcamconfig.
 Config.ClipFirstPersonRequiresSnapshotToggle = false
--- JPEG quality for clip frames (before VP9). Higher = sharper source frames, larger data URLs.
-Config.ClipJpegQuality = 0.92
+-- JPEG quality for clip frames (before VP9). Slightly below max = less NUI churn, still very sharp at 720p.
+Config.ClipJpegQuality = 0.90
 -- Mix the player's real microphone (browser getUserMedia) into the WebM when supported.
 Config.EnableClipRecordingMicrophone = true
 -- If true, NUI warms up the mic when bodycam turns ON (Chromium may show a permission prompt early).
@@ -126,10 +122,11 @@ Config.ClipMicrophoneWarmupOnActivate = false
 -- Clip audio source (see README "Game + voice chat audio"):
 --   mic = microphone only (getUserMedia).
 --   display = Windows monitor / "Entire screen" loopback via browser screen share (game + default output, incl. typical Mumble/pma-voice to headphones).
---   display_plus_mic = loopback + microphone mixed (recommended for officer radio + world).
--- display* modes call getDisplayMedia inside FiveM NUI; many client builds throw NotAllowedError/Invalid state (CEF).
--- Override without editing this file: server.cfg  setr bodycam_clip_audio_mode mic
-Config.ClipAudioCaptureMode = "display_plus_mic"
+--   display_plus_mic = loopback + microphone mixed (best when CEF allows it).
+-- display* modes call getDisplayMedia inside FiveM NUI; many builds throw NotAllowedError / Invalid state (CEF).
+-- Default mic = reliable clips; opt in to display_plus_mic via server.cfg when players can use bodycamclipaudio.
+-- Override without editing this file: setr bodycam_clip_audio_mode display_plus_mic
+Config.ClipAudioCaptureMode = "mic"
 local _clipAudioModeCv = GetConvar('bodycam_clip_audio_mode', '')
 if type(_clipAudioModeCv) == 'string' and _clipAudioModeCv:gsub('%s+', '') ~= '' then
     Config.ClipAudioCaptureMode = _clipAudioModeCv:match('^%s*(.-)%s*$') or Config.ClipAudioCaptureMode
@@ -148,21 +145,21 @@ if type(_micDevCv) == 'string' and _micDevCv:match('%S') then
     Config.ClipMicrophoneDeviceId = _micDevCv:match('^%s*(.-)%s*$') or ''
 end
 -- Legacy flag — real game path uses ClipAudioCaptureMode display* + getDisplayMedia (README).
-Config.EnableClipRecordingGameAudio = false
-Config.EnableLongVideoMode = false
+Config.EnableClipRecordingGameAudio = true
+Config.EnableLongVideoMode = true
 -- Max seconds for combined-audio capture (keybind duration is clamped to this). Presign size estimate uses duration.
 Config.CombinedAudioMaxSeconds = 90
 Config.ShortClipMaxSeconds = 30
 Config.MediumClipMaxSeconds = 300
 Config.LongVideoMaxSeconds = 1800
 Config.MaxClipFileSizeMB = 100
--- 1280x720 (720p) + higher VP9 bitrate for smoother clips (larger files / more CPU).
-Config.ShortClipResolution = "1920x1080"
-Config.ShortClipBitrateKbps = 4500
-Config.MediumClipResolution = "1920x1080"
-Config.MediumClipBitrateKbps = 2000
-Config.LongVideoResolution = "1920x1080"
-Config.LongVideoBitrateKbps = 1500
+-- 720p @ strong bitrates: sharp evidence, fewer dropped frames than 1080p30 (smoother capture + playback).
+Config.ShortClipResolution = "1280x720"
+Config.ShortClipBitrateKbps = 5200
+Config.MediumClipResolution = "1280x720"
+Config.MediumClipBitrateKbps = 4800
+Config.LongVideoResolution = "1280x720"
+Config.LongVideoBitrateKbps = 4000
 Config.VideoCodec = "h264"
 Config.RequireCaseNumberForLongVideos = true
 Config.LongVideoWithoutCaseAction = "reject"

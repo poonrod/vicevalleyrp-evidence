@@ -39,8 +39,6 @@ CreateThread(function()
                             if not Bodycam.active then
                                 Bodycam.SetActive(true, 'auto_taser')
                             end
-                            local _, reason = PreBuffer.FlushPreEvent('auto_taser_pre_event')
-                            CaptureClient.TakeSnapshot('auto_taser', wname, reason)
                         elseif isFirearm and Config.AutoActivateOnFirearm and (Config.ForceAutoFirearmForLawEnforcement or Bodycam.personal.autoFirearm) then
                             if Config.AutoActivationCreatesIncidentMarker then
                                 TriggerServerEvent('bodycam:server:getOrCreateIncident')
@@ -48,8 +46,6 @@ CreateThread(function()
                             if not Bodycam.active then
                                 Bodycam.SetActive(true, 'auto_firearm')
                             end
-                            local _, reason = PreBuffer.FlushPreEvent('auto_firearm_pre_event')
-                            CaptureClient.TakeSnapshot('auto_firearm', wname, reason)
                         end
                     end
                 end

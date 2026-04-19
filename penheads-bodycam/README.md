@@ -33,7 +33,7 @@ Put those **`set` lines above `ensure penheads-bodycam`** in `server.cfg` so the
 
 **Standalone + “nothing hits the API”:** With `RestrictToLawEnforcement = true`, job names came only from `AllowedJobs` (`police`, `sheriff`). The standalone framework reports job **`standalone`** for everyone, so uploads were blocked before any HTTP call. The server script now treats **`standalone`** as law enforcement when `bodycam_framework` is `standalone`. The **client** matches that for equipment / toggle checks when `LocalPlayer.state.jobName` is `standalone`. For stricter public servers, use **ACE** (`UseAcePermissions`) or set **`RestrictToLawEnforcement = false`** only on private test boxes.
 
-**Test server still not uploading:** (1) Player must have a **`discord:`** identifier or C7 Discord field — otherwise you get “No Discord identifier”. (2) `bodycam_api_base` must be a URL your **FXServer machine** can reach (`PerformHttpRequest` runs on the server). `http://127.0.0.1:4000` only works if the evidence API listens on the same host as the game server. (3) `bodycam_api_secret` must exactly match **`FIVEM_API_SECRET`** in the API `.env`. (4) `ensure screenshot-basic` before bodycam and confirm it is **started** (not “starting”). (5) With clip mode off, you still get **JPEG snapshots** (manual `/bcamsnap`, periodic while recording, auto on taser/gun). With clip mode on, turning bodycam off also produces a **WebM clip** (see above).
+**Test server still not uploading:** (1) Player must have a **`discord:`** identifier or C7 Discord field — otherwise you get “No Discord identifier”. (2) `bodycam_api_base` must be a URL your **FXServer machine** can reach (`PerformHttpRequest` runs on the server). `http://127.0.0.1:4000` only works if the evidence API listens on the same host as the game server. (3) `bodycam_api_secret` must exactly match **`FIVEM_API_SECRET`** in the API `.env`. (4) `ensure screenshot-basic` before bodycam and confirm it is **started** (not “starting”). (5) Evidence is **WebM video only**: with **`EnableClipMode`**, turn bodycam **off** to capture and upload a clip. Keep clip mode on or no video is saved.
 
 **Verbose server logs:** add `set bodycam_debug "1"` next to your other bodycam convars; failed upload-url / complete calls print one line to the server console with the error string.
 
@@ -42,24 +42,24 @@ Put those **`set` lines above `ensure penheads-bodycam`** in `server.cfg` so the
 After the officer turns **bodycam off**, the client captures a burst of **JPEG frames** from `screenshot-basic`, encodes them in NUI with **MediaRecorder** into **WebM** (prefers **VP9 + Opus** when the browser supports it), then **PUTs** the blob to the same presigned flow as photos.
 
 - **FPS:** `ClipRecordFps` / `ClipRecordFpsMax` tune screenshot cadence. The FiveM server must pass `clipRecordFps` into the presign payload (defaults to `Config.ClipRecordFps`, **not** 2 — an old default of `2` made clips extremely blocky). Real FPS is often **below** the target because each `requestScreenshot` takes time. `ClipMaxFramesCap` limits total frames for safety.
-- **First person:** `UseFirstPersonForClipRecording` (default **true**) makes **saved WebM frames** first-person. `ClipFirstPersonHoldWhileRecording` (default **false**) controls the **player camera**: **false** = brief first-person only around each screenshot (POV restores between frames); **true** = hold first person for the whole clip (`BeginClipSessionFirstPerson`, no per-frame flicker but you stay in FP while recording). Set `ClipFirstPersonRequiresSnapshotToggle` to **true** to require the same personal toggle as JPEG snapshots.
+- **First person:** `UseFirstPersonForClipRecording` (default **true**) makes **saved WebM frames** first-person. `ClipFirstPersonHoldWhileRecording` (default **false**) controls the **player camera**: **false** = brief first-person only around each screenshot (POV restores between frames); **true** = hold first person for the whole clip (`BeginClipSessionFirstPerson`, no per-frame flicker but you stay in FP while recording). Set `ClipFirstPersonRequiresSnapshotToggle` to **true** to require the same personal first-person toggle from `/bcamconfig` for clip angles.
 - **Encoding:** `ShortClipResolution` / `ShortClipBitrateKbps` target VP9 size vs quality (default **960×540** and **~1.4 Mbps**). NUI prefers **VP9 + Opus** when supported.
 - **Microphone:** When `EnableClipRecordingMicrophone` is true (default), NUI calls **`getUserMedia({ audio })`** and mixes that track into the WebM. That is the player’s **physical microphone** in Windows (what Discord/browser would use). Chromium may show a **permission prompt** the first time; **`ClipMicrophoneWarmupOnActivate`** (default **false**) controls whether that happens **when bodycam turns on** vs only when the **WebM clip** starts (turn bodycam off with clip mode on).
 - **`ClipMicrophoneProcessing`:** `"voice"` (default) uses echo/noise suppression (good for comms). `"ambient"` turns most of that off so **speaker / room** sound is louder — useful if game audio is heard through speakers and you want more of it on the clip (still **mic-only**, not a direct game tap). For a **virtual mix** of desktop/game audio into the “mic”, players can install **VB-Audio Cable** / **Stereo Mix** and set that device as the default recording device (advanced; not automated by this resource).
 - **Game + voice chat on clips (`ClipAudioCaptureMode`):** FiveM does **not** expose raw engine or Mumble PCM to Lua. This resource can still record **what you hear** by using the browser’s **`getDisplayMedia`** screen share with **system / monitor loopback audio** (Chromium on Windows: pick the monitor running GTA and enable **Share audio**). That captures **game output** and **positional voice** as long as they play through the normal Windows playback device (headphones/speakers). Modes:
   - **`mic`** — microphone only (`getUserMedia`).
   - **`display`** — loopback only (no officer mic).
-  - **`display_plus_mic`** (default) — **loopback + microphone** mixed in NUI (Web Audio) so your radio / local talk is included with world audio.
+  - **`display_plus_mic`** — **loopback + microphone** mixed in NUI (Web Audio) so your radio / local talk is included with world audio. Opt-in via `setr bodycam_clip_audio_mode display_plus_mic` when CEF allows it.
   **Setup (F8 only):** With display modes enabled, run **`bodycamclipaudio`** in the **F8** client console (override via `Config.BodycamClipAudioConsoleCommand`). That opens NUI with mouse focus so the player can click **Allow monitor audio** and pick the monitor with **Share audio** — Chromium requires that gesture. A successful grant is **remembered in the FiveM CEF profile** (localStorage). **`bodycamclipaudio_clear`** (same prefix + `_clear`) wipes that preference and stops any cached capture. If a clip still cannot get loopback audio (browser/OS policy), run **`bodycamclipaudio`** again. If they skip setup, the first clip may fall back to mic-only (`display_plus_mic`) or fail (`display` only).
   - **`%AppData%\Roaming\CitizenFX\media_access.json`:** The FiveM **client** may write NUI media allow data here (often keyed by **connect endpoint** — keep **one stable** server hostname/IP so players are not treated as a new site each time). You **cannot** ship a “grant file” with this resource that forces desktop audio: the format is **internal**, the client **owns** the file, and community reports show **manual edits do not fix** `getDisplayMedia` failing with **`Invalid state`** after prompts ([citizenfx/fivem#3241](https://github.com/citizenfx/fivem/issues/3241)). For **reliable** game + comms when loopback fails, use **Windows routing** (e.g. Voicemeeter / VB-Cable) into the **default mic** and **`ClipAudioCaptureMode = "mic"`**.
 - **Max audio without installing extra apps (recommended stack):**
-  1. Keep **`ClipAudioCaptureMode = "display_plus_mic"`** and run **`bodycamclipaudio`** so loopback is used when FiveM’s CEF allows it (monitor + **Share audio**). Stay on a **current** FiveM client build.
+  1. Default is **`mic`** (reliable). For loopback when your CEF build works: set **`ClipAudioCaptureMode = "display_plus_mic"`** and run **`bodycamclipaudio`** (monitor + **Share audio**). Stay on a **current** FiveM client build.
   2. Set **`ClipMicrophoneProcessing = "ambient"`** if you want **less** AEC/NS on the mic leg (more room / speaker bleed; still not engine PCM by itself).
   3. **Windows-only, no third-party program:** some sound drivers expose **Stereo Mix** / **What U Hear** in *Sound → Recording* (right-click empty area → **Show Disabled Devices** → enable). Then run F8 **`bodycam_mic_devices`** (after toggling bodycam **on** once so the mic prompt ran), copy the **`deviceId`** for that input into **`Config.ClipMicrophoneDeviceId`** or **`setr bodycam_clip_mic_device_id "…"`** — clips will record that input as the “mic” track (often includes **game output** already routed to that device). Not all PCs expose Stereo Mix.
   4. If loopback + Stereo Mix are both unavailable, fall back to **`setr bodycam_clip_audio_mode mic`** and accept mic-only clips.
 - **Bitrate / resolution:** WebM encoding uses **`ShortClipBitrateKbps`** and downscales frames to **`ShortClipResolution`** before `MediaRecorder` so the encoder keeps up; if clips still hitch, lower **`ClipRecordFps`** or max seconds.
 
-**Periodic JPEG snapshots are disabled while clip mode is on.** Set `EnableClipMode = false` if you only want interval photos.
+**`EnableClipMode` must stay on** for this video-only build; turning it off means no evidence file is produced when bodycam stops.
 
 **Incidents:** When an officer turns bodycam **on**, the server calls **`POST /internal/fivem/incidents/ensure`** with the session id (`BCAM-…`) so a matching row exists in the evidence API database. Uploads then attach **`incidentBusinessId`** correctly. If the API is down, the HUD id still appears but evidence may not link until the next successful ensure.
 
@@ -77,9 +77,8 @@ set bodycam_framework "c7fw"
 
 | Input | Action |
 |--------|--------|
-| **F10** (default) | **Toggle bodycam** (`+togglebodycam`). HUD, snapshots, incident. With **`EnableClipMode`**, **turning off** starts the **video WebM clip** (mic + optional desktop audio per `ClipAudioCaptureMode`) — usual **one-key** AV evidence. |
+| **F10** (default) | **Toggle bodycam** (`+togglebodycam`). HUD, incident. With **`EnableClipMode`**, **turning off** starts the **video WebM clip** (mic + optional desktop audio per `ClipAudioCaptureMode`). |
 | `/bodycam` | Toggle (if enabled in config) |
-| `/bcamsnap` | Manual screenshot while bodycam **on** |
 | `/bcamconfig` | NUI settings (sleeping mode, auto taser/firearm, etc.) |
 | Optional second bind (`EnableCombinedAudioRecordKeybind`, default **off**) | Standalone **mic + desktop** WebM only — extra key (e.g. F9) if you need that capture without clip mode / without waiting for bodycam off. |
 | **One F10, no clip mode** | Set **`StartCombinedAudioAfterManualBodycamOffWhenNoClip = true`** and **`EnableClipMode = false`**: **manual** bodycam **off** then opens combined-audio capture (click **Start**, share monitor + audio). |
@@ -93,8 +92,8 @@ Change default key in `config.lua` → `ToggleKeybindDefault`.
 
 - **Sleeping mode:** disables auto-activation and pre-buffer behavior; manual use may still be allowed (`AllowManualActivationWhileSleeping`).  
 - **Auto taser/firearm:** per-player toggles in `/bcamconfig` unless server **forces** them on.  
-- **Camera:** Default is **not** forcing first person while the bodycam is on (`ForceFirstPersonWhileBodycamActive = false`). **`UseFirstPersonForSnapshots`** (default true) plus the personal **first-person capture** toggle briefly switches to first person **only for each screenshot** so footage matches a body-worn camera; turn the toggle off in `/bcamconfig` to record whatever view you are in (e.g. third person).  
-- **Pre-event buffer:** periodic snapshots while active; on weapon event, buffer is flushed and labeled — **not** true retroactive video.  
+- **Camera:** Default is **not** forcing first person while the bodycam is on (`ForceFirstPersonWhileBodycamActive = false`). Clip first-person options use **`UseFirstPersonForClipRecording`** and the personal **first-person** toggle in `/bcamconfig` when **`ClipFirstPersonRequiresSnapshotToggle`** is enabled.  
+- **Auto taser / firearm:** can still **turn the bodycam on** automatically; evidence is the **WebM** when the unit turns the bodycam off (no separate still-photo uploads).  
 - **Law enforcement:** `AllowedJobs`, optional ACE `bodycam.use`, optional bodycam **component** match.
 
 ## Sounds
@@ -103,7 +102,7 @@ Change default key in `config.lua` → `ToggleKeybindDefault`.
 
 ## Screenshot upload note
 
-**citizenfx/screenshot-basic** captures via `requestScreenshot`, but its built-in **`requestScreenshotUpload`** path always sends **POST + multipart FormData**. Our API issues **presigned S3 PutObject (PUT + raw JPEG)** URLs, so bodycam **PUTs from this resource’s NUI** (`html/app.js`) after capture. You still need **screenshot-basic** started for the capture export. If uploads fail with **403** / signature errors, confirm your R2 bucket **CORS** allows **PUT** from NUI origins (`https://cfx-nui-*`).
+**citizenfx/screenshot-basic** supplies `requestScreenshot` for **clip frame grabs** (JPEG data URLs → NUI → WebM). Our API issues **presigned PUT** URLs; the client **PUTs WebM** (and combined-audio WebM) from NUI. If uploads fail with **403** / signature errors, confirm your R2 bucket **CORS** allows **PUT** for `video/webm` and NUI origins (`https://cfx-nui-*`).
 
 ## Discord ID routing
 

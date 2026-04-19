@@ -466,7 +466,7 @@ For a quick **internet test** without a domain, some teams use a tunnel (e.g. ng
 
 ### 7.1 Install screenshot-basic
 
-This bodycam resource uploads screenshots through **screenshot-basic** (or a compatible uploader). Common choice:
+This bodycam resource builds **WebM** clips using **screenshot-basic** `requestScreenshot` for frames (or a compatible resource). Common choice:
 
 - Resource: [citizenfx/screenshot-basic](https://github.com/citizenfx/screenshot-basic)  
 - Add it to your server’s `resources` folder and ensure it in `server.cfg` **before** the bodycam resource.
@@ -518,7 +518,7 @@ Open `penheads-bodycam\config.lua`:
 2. Start **FiveM server** with `screenshot-basic` + bodycam ensured.
 3. Join the server with a Discord-linked FiveM account (so the server sees a `discord:` identifier).
 4. Press **F10** (default) or run **`/bodycam`** to turn the bodycam **on** (you must pass job/equipment checks).
-5. Run **`/bcamsnap`** (or wait for periodic capture while active) to trigger a screenshot upload.
+5. Turn the bodycam **off** again (same key or **`/bodycam`**) so a **WebM clip** is captured and uploaded (**`EnableClipMode`** must be true in `config.lua`).
 6. Watch server console / F8 for errors. Success: in-game notification that evidence saved (or no “Upload URL failed”).
 7. Open the web portal → **Evidence** — a new row should appear for your Discord user.
 
@@ -528,7 +528,6 @@ Open `penheads-bodycam\config.lua`:
 |----------------|--------|
 | `F10` (default) | Toggle bodycam |
 | `/bodycam` | Toggle (if enabled in config) |
-| `/bcamsnap` | Manual snapshot while bodycam is **on** |
 | `/bcamconfig` | Personal settings (sleeping mode, auto taser/firearm, etc.) |
 
 ---
@@ -573,10 +572,10 @@ Discord app redirect list must include the **exact** URL in `DISCORD_CALLBACK_UR
 - FiveM server cannot reach `bodycam_api_base` (firewall, wrong IP, API not running, HTTPS certificate issues).
 - Test from the **same machine** as FXServer: open browser or `curl` to `bodycam_api_base/health`.
 
-### Presigned upload 403 / screenshot fails
+### Presigned upload 403 / clip capture fails
 
 - R2 keys, bucket name, or endpoint wrong.
-- **Content-Type** on the PUT must match what the API signed (JPEG).
+- **Content-Type** on the PUT must match what the API signed (for clips, **`video/webm`**).
 - **screenshot-basic** version may not match presigned PUT requirements — check its docs or try a minimal `curl` PUT with the presigned URL.
 
 ### “Complete failed” / object not found
@@ -592,7 +591,7 @@ The file must finish uploading to R2 **before** the API runs `complete`. Slow ne
 
 ## Where to read next
 
-- [`penheads-bodycam/README.md`](../penheads-bodycam/README.md) — commands, convars, screenshot note  
+- [`penheads-bodycam/README.md`](../penheads-bodycam/README.md) — commands, convars, clip capture notes  
 - [`api/README.md`](../api/README.md) — API routes and internal FiveM headers  
 - [`web/README.md`](../web/README.md) — portal env vars  
 - Root [`README.md`](../README.md) — R2 security and prefix layout  
