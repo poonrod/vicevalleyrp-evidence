@@ -57,7 +57,7 @@ async function acquireDisplayAudioStreamInternal() {
 
   let aud = liveAudioTracks();
   if (!aud.length) {
-    const deadline = performance.now() + 500;
+    const deadline = performance.now() + 1500;
     while (!aud.length && performance.now() < deadline) {
       await new Promise((r) => setTimeout(r, 50));
       aud = liveAudioTracks();
@@ -418,7 +418,12 @@ window.addEventListener("message", (e) => {
     if (d.active) hud.classList.remove("hidden");
     else hud.classList.add("hidden");
     if (!d.active) {
-      stopCachedDisplayAudio();
+      /* Do not stop primed loopback when using display audio: bodycam OFF immediately starts the
+         WebM clip in Lua; clearing the cache here ran before bodycam_clip_begin and forced mic-only
+         (no user gesture for a fresh getDisplayMedia). Still clear when configured for mic-only. */
+      if (normalizeClipAudioMode(d.clipAudioCaptureMode) === "mic") {
+        stopCachedDisplayAudio();
+      }
     }
   }
   if (d.type === "bodycam_audio_console_setup_open") {

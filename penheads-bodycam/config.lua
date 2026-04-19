@@ -100,12 +100,20 @@ Config.ClipMinActiveSeconds = 5
 -- Minimum **recorded WebM** length (seconds); clips shorter than this are discarded (NUI) and the player is notified.
 Config.ClipMinUploadSeconds = 5
 -- Clip FPS: higher = smoother motion; screenshot-basic latency may cap real FPS below this.
+-- Tier targets (short = bodycam WebM; medium/long for policy / future uploads). ClipRecord* mirrors short.
+Config.ShortClipRecordFps = 30
+Config.MediumClipRecordFps = 30
+Config.LongVideoRecordFps = 30
 Config.ClipRecordFps = 30
 Config.ClipRecordFpsMax = 30
 Config.ClipMaxFramesCap = 960
 Config.ClipEstimatedMaxMB = 96
--- Hold first-person for the whole WebM clip (not per-frame). Turn off to record in your current camera mode.
+-- When true, WebM clip **frames** use a first-person angle (chest-cam style). Turn off for third-person clips.
 Config.UseFirstPersonForClipRecording = true
+-- When true, the **player camera** stays in first person for the whole clip (one long switch). When false
+-- (default), only switches to first person **around each screenshot** then restores — same POV between
+-- frames as normal gameplay, but the **saved video** is still first person.
+Config.ClipFirstPersonHoldWhileRecording = false
 -- If true, clip first-person also requires the personal "First-person capture" toggle in /bcamconfig.
 Config.ClipFirstPersonRequiresSnapshotToggle = false
 -- JPEG quality for clip frames (before VP9). Higher = sharper source frames, larger data URLs.
@@ -149,12 +157,12 @@ Config.MediumClipMaxSeconds = 300
 Config.LongVideoMaxSeconds = 1800
 Config.MaxClipFileSizeMB = 100
 -- 1280x720 (720p) + higher VP9 bitrate for smoother clips (larger files / more CPU).
-Config.ShortClipResolution = "1280x720"
+Config.ShortClipResolution = "1920x1080"
 Config.ShortClipBitrateKbps = 4500
-Config.MediumClipResolution = "1280x720"
-Config.MediumClipBitrateKbps = 1500
-Config.LongVideoResolution = "960x540"
-Config.LongVideoBitrateKbps = 1000
+Config.MediumClipResolution = "1920x1080"
+Config.MediumClipBitrateKbps = 2000
+Config.LongVideoResolution = "1920x1080"
+Config.LongVideoBitrateKbps = 1500
 Config.VideoCodec = "h264"
 Config.RequireCaseNumberForLongVideos = true
 Config.LongVideoWithoutCaseAction = "reject"

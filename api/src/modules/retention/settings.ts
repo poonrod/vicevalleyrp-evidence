@@ -21,10 +21,14 @@ export type RetentionSettings = {
   maxUploadSizeMB: number;
   shortClipResolution: string;
   shortClipBitrateKbps: number;
+  /** Target encode / capture frame rate for short-tier (e.g. bodycam WebM) clips. */
+  shortClipFps: number;
   mediumClipResolution: string;
   mediumClipBitrateKbps: number;
+  mediumClipFps: number;
   longVideoResolution: string;
   longVideoBitrateKbps: number;
+  longVideoFps: number;
   videoCodec: string;
   enableLongVideoMode: boolean;
   requireCaseNumberForLongVideos: boolean;
@@ -55,10 +59,13 @@ export const DEFAULT_RETENTION_SETTINGS: RetentionSettings = {
   maxUploadSizeMB: 100,
   shortClipResolution: "1280x720",
   shortClipBitrateKbps: 4500,
+  shortClipFps: 30,
   mediumClipResolution: "1280x720",
   mediumClipBitrateKbps: 1500,
+  mediumClipFps: 30,
   longVideoResolution: "960x540",
   longVideoBitrateKbps: 1000,
+  longVideoFps: 30,
   videoCodec: "h264",
   enableLongVideoMode: false,
   requireCaseNumberForLongVideos: true,
@@ -89,10 +96,13 @@ export const RETENTION_KEYS = [
   "maxUploadSizeMB",
   "shortClipResolution",
   "shortClipBitrateKbps",
+  "shortClipFps",
   "mediumClipResolution",
   "mediumClipBitrateKbps",
+  "mediumClipFps",
   "longVideoResolution",
   "longVideoBitrateKbps",
+  "longVideoFps",
   "videoCodec",
   "enableLongVideoMode",
   "requireCaseNumberForLongVideos",

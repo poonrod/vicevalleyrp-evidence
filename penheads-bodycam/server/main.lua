@@ -1,5 +1,17 @@
 local activeSessions = {}
 
+--- FPS passed to NUI clip capture; tier defaults from config when client omits clipRecordFps.
+local function resolveClipFpsForPresign(meta)
+    local tier = tostring(meta and meta.videoTier or 'short'):lower()
+    if tier == 'medium' then
+        return tonumber(meta and meta.clipRecordFps) or tonumber(Config.MediumClipRecordFps) or tonumber(Config.ClipRecordFps) or 30
+    end
+    if tier == 'long' then
+        return tonumber(meta and meta.clipRecordFps) or tonumber(Config.LongVideoRecordFps) or tonumber(Config.ClipRecordFps) or 30
+    end
+    return tonumber(meta and meta.clipRecordFps) or tonumber(Config.ShortClipRecordFps) or tonumber(Config.ClipRecordFps) or 30
+end
+
 local function newIncidentId()
     return ('BCAM-%s-%s'):format(os.date('!%Y%m%d'), tostring(math.random(1000, 9999)))
 end
@@ -51,7 +63,7 @@ RegisterNetEvent('bodycam:server:requestUpload', function(meta)
             officerCallsign = cs,
             clipRecord = meta.captureType == 'bodycam_clip_stop',
             clipSeconds = tonumber(meta.clipMaxSeconds) or 12,
-            clipFps = tonumber(meta.clipRecordFps) or tonumber(Config.ClipRecordFps) or 20,
+            clipFps = resolveClipFpsForPresign(meta),
             combinedAudioRecord = meta.captureType == 'bodycam_combined_audio_record',
             combinedAudioSeconds = tonumber(meta.combinedAudioSeconds) or 30,
         })

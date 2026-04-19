@@ -346,8 +346,26 @@ local function startWebmClipFromPresign(data)
     presignedCorrelation = presignedCorrelation + 1
     local cid = tostring(presignedCorrelation)
 
-    local fpsMax = math.max(1, math.floor(tonumber(Config.ClipRecordFpsMax) or 30))
-    local requested = math.floor(tonumber(data.clipFps) or tonumber(Config.ClipRecordFps) or 30)
+    local tier = 'short'
+    if type(data.meta) == 'table' and data.meta.videoTier then
+        tier = tostring(data.meta.videoTier):lower()
+    end
+    local tierFpsMax = Config.ClipRecordFpsMax
+    if tier == 'medium' then
+        tierFpsMax = Config.MediumClipRecordFps or Config.ClipRecordFpsMax
+    elseif tier == 'long' then
+        tierFpsMax = Config.LongVideoRecordFps or Config.ClipRecordFpsMax
+    else
+        tierFpsMax = Config.ShortClipRecordFps or Config.ClipRecordFpsMax
+    end
+    local fpsMax = math.max(1, math.floor(tonumber(tierFpsMax) or tonumber(Config.ClipRecordFpsMax) or 30))
+    local tierDefault = tonumber(Config.ShortClipRecordFps) or tonumber(Config.ClipRecordFps) or 30
+    if tier == 'medium' then
+        tierDefault = tonumber(Config.MediumClipRecordFps) or tierDefault
+    elseif tier == 'long' then
+        tierDefault = tonumber(Config.LongVideoRecordFps) or tierDefault
+    end
+    local requested = math.floor(tonumber(data.clipFps) or tierDefault)
     local fps = math.max(1, math.min(fpsMax, requested))
     local sec = math.max(3, math.min(tonumber(data.clipSeconds) or 12, Config.ShortClipMaxSeconds or 30))
     local cap = math.max(60, math.floor(tonumber(Config.ClipMaxFramesCap) or 720))
@@ -363,11 +381,14 @@ local function startWebmClipFromPresign(data)
     }
     Bodycam.clipRecording = true
 
-    -- Hold first-person for the whole clip (BeginClip… / EndClip…) when enabled — no per-frame toggle.
-    local wantClipHoldFp = Config.UseFirstPersonForClipRecording ~= false
+    -- First-person **footage**: UseFirstPersonForClipRecording. Player POV: only "hold" mode keeps them
+    -- in FP the whole time; default is per-frame FP (brief switch per screenshot) so view restores between frames.
+    local clipWantsFirstPerson = Config.UseFirstPersonForClipRecording ~= false
     if Config.ClipFirstPersonRequiresSnapshotToggle then
-        wantClipHoldFp = wantClipHoldFp and Bodycam.personal.firstPerson
+        clipWantsFirstPerson = clipWantsFirstPerson and Bodycam.personal.firstPerson
     end
+    local wantClipHoldFp = clipWantsFirstPerson and (Config.ClipFirstPersonHoldWhileRecording == true)
+    local wantFpPerFrame = clipWantsFirstPerson and not wantClipHoldFp
     local includeMic = Config.EnableClipRecordingMicrophone ~= false
 
     local iso = Utils.NowIsoUtc()
@@ -408,7 +429,7 @@ local function startWebmClipFromPresign(data)
         if wantClipHoldFp then
             CameraClient.BeginClipSessionFirstPerson()
         end
-        captureClipFrame(0, maxFrames, cid, data, false, gap, shotRes, wantClipHoldFp)
+        captureClipFrame(0, maxFrames, cid, data, wantFpPerFrame, gap, shotRes, wantClipHoldFp)
     end)
 end
 
@@ -485,7 +506,7 @@ function CaptureClient.TryFinalizeWebmClip(sessionDurMs)
         captureType = 'bodycam_clip_stop',
         videoTier = 'short',
         clipMaxSeconds = capSec,
-        clipRecordFps = Config.ClipRecordFps or 30,
+        clipRecordFps = tonumber(Config.ShortClipRecordFps) or tonumber(Config.ClipRecordFps) or 30,
     })
 end
 
