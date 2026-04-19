@@ -18,7 +18,7 @@ import { createStorageProvider } from "../modules/storage/factory";
 import { loadRetentionSettings } from "../modules/retention/loadSettings";
 import { runRetentionDeletionBatch } from "../worker/retentionBatch";
 import { uploadUrlRequestSchema, completeUploadRequestSchema, caseNumberSchema } from "@vicevalley/shared";
-import { computeRetentionClass, computeScheduledDeletionAt } from "../modules/retention/compute";
+import { computeRetentionClass, computeEvidenceScheduledDeletion } from "../modules/retention/compute";
 
 const developerLimiter = rateLimit({
   windowMs: 60_000,
@@ -273,7 +273,10 @@ developerRouter.post("/maintenance/repair-scheduling", async (req, res) => {
       },
       settings
     );
-    const sched = computeScheduledDeletionAt(e.timestampUtc, rc, settings);
+    const sched = computeEvidenceScheduledDeletion(e.timestampUtc, rc, settings, {
+      evidenceType: e.type,
+      caseNumber: e.caseNumber,
+    });
     await prisma.evidenceItem.update({
       where: { id: e.id },
       data: { retentionClass: rc, scheduledDeletionAt: sched, retentionUntil: sched },

@@ -17,7 +17,7 @@ import {
 import { createStorageProvider } from "../modules/storage/factory";
 import { env } from "../config/env";
 import { loadRetentionSettings } from "../modules/retention/loadSettings";
-import { computeRetentionClass, computeScheduledDeletionAt } from "../modules/retention/compute";
+import { computeRetentionClass, computeEvidenceScheduledDeletion } from "../modules/retention/compute";
 import { isStrictEvidencePermissions } from "../lib/systemFlags";
 import type { EvidenceItem, User } from "@prisma/client";
 
@@ -292,7 +292,10 @@ evidenceRouter.post("/:id/notes", requireAuth, async (req, res) => {
       },
       settings
     );
-    const sched = computeScheduledDeletionAt(full.createdAt, rc, settings);
+    const sched = computeEvidenceScheduledDeletion(full.createdAt, rc, settings, {
+      evidenceType: full.type,
+      caseNumber: full.caseNumber,
+    });
     await prisma.evidenceItem.update({
       where: { id: ev.id },
       data: { retentionClass: rc, scheduledDeletionAt: sched, retentionUntil: sched },
@@ -340,7 +343,10 @@ evidenceRouter.post("/:id/tags", requireAuth, async (req, res) => {
       },
       settings
     );
-    const sched = computeScheduledDeletionAt(full.createdAt, rc, settings);
+    const sched = computeEvidenceScheduledDeletion(full.createdAt, rc, settings, {
+      evidenceType: full.type,
+      caseNumber: full.caseNumber,
+    });
     await prisma.evidenceItem.update({
       where: { id: ev.id },
       data: { retentionClass: rc, scheduledDeletionAt: sched, retentionUntil: sched },
@@ -382,7 +388,10 @@ evidenceRouter.patch("/:id/case-number", requireMinRole("evidence_tech"), async 
     },
     settings
   );
-  const sched = computeScheduledDeletionAt(updated.createdAt, rc, settings);
+  const sched = computeEvidenceScheduledDeletion(updated.createdAt, rc, settings, {
+    evidenceType: updated.type,
+    caseNumber: updated.caseNumber,
+  });
   await prisma.evidenceItem.update({
     where: { id: ev.id },
     data: { retentionClass: rc, scheduledDeletionAt: sched, retentionUntil: sched },

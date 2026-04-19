@@ -5,7 +5,7 @@ import { createStorageProvider } from "../storage/factory";
 import { evidenceObjectKey, extensionFromFileName, newEvidenceId } from "../storage/paths";
 import { loadRetentionSettings } from "../retention/loadSettings";
 import { getSystemFlags } from "../../lib/systemFlags";
-import { computeRetentionClass, computeScheduledDeletionAt } from "../retention/compute";
+import { computeRetentionClass, computeEvidenceScheduledDeletion } from "../retention/compute";
 import { assertAllowedMime } from "./mime";
 import type { z } from "zod";
 import { completeUploadRequestSchema } from "@vicevalley/shared";
@@ -123,12 +123,10 @@ export async function completeEvidenceForUser(user: User, body: CompleteBody & {
     settings
   );
 
-  let scheduled = computeScheduledDeletionAt(new Date(body.timestampUtc), retentionClass, settings);
-  if (body.videoTier === "long" && !body.caseNumber && settings.longVideoWithoutCaseAction === "short_retention") {
-    const d = new Date(body.timestampUtc);
-    d.setUTCDate(d.getUTCDate() + settings.longVideoDeleteAfterDays);
-    scheduled = d;
-  }
+  const scheduled = computeEvidenceScheduledDeletion(new Date(body.timestampUtc), retentionClass, settings, {
+    evidenceType: body.type,
+    caseNumber: body.caseNumber ?? null,
+  });
 
   const incidentBusinessIdUser = await resolveIncidentBusinessId(body.incidentId);
 
@@ -297,12 +295,10 @@ export async function completeEvidenceForFivem(
     },
     settings
   );
-  let scheduled = computeScheduledDeletionAt(new Date(body.timestampUtc), retentionClass, settings);
-  if (body.videoTier === "long" && !body.caseNumber && settings.longVideoWithoutCaseAction === "short_retention") {
-    const d = new Date(body.timestampUtc);
-    d.setUTCDate(d.getUTCDate() + settings.longVideoDeleteAfterDays);
-    scheduled = d;
-  }
+  const scheduled = computeEvidenceScheduledDeletion(new Date(body.timestampUtc), retentionClass, settings, {
+    evidenceType: body.type,
+    caseNumber: body.caseNumber ?? null,
+  });
 
   const incidentBusinessIdFivem = await resolveIncidentBusinessId(body.incidentId);
 

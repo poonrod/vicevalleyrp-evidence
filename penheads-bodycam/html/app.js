@@ -820,12 +820,9 @@ async function startClipSession(d) {
   const merged = new MediaStream(tracks);
 
   const kbps = Math.max(400, Math.min(12000, Number(d.clipVideoBitrateKbps) || 1400));
-  const px = Math.max(1, initW * initH);
-  const refPx = 960 * 540;
-  const scaledKbps = Math.round(Math.min(10000, Math.max(600, (kbps * refPx) / px)));
   const recOpts = {
     mimeType: mime,
-    videoBitsPerSecond: scaledKbps * 1000,
+    videoBitsPerSecond: kbps * 1000,
   };
   if (hasAudio) {
     recOpts.audioBitsPerSecond = displayStream ? 128_000 : 96_000;

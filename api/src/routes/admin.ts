@@ -149,7 +149,7 @@ adminRouter.post("/evidence/:id/release-hold", async (req, res) => {
   const ev = await prisma.evidenceItem.findUnique({ where: { id: String(req.params.id) } });
   if (!ev) return res.status(404).json({ error: "Not found" });
   const settings = await loadRetentionSettings();
-  const { computeRetentionClass, computeScheduledDeletionAt } = await import("../modules/retention/compute");
+  const { computeRetentionClass, computeEvidenceScheduledDeletion } = await import("../modules/retention/compute");
   const full = await prisma.evidenceItem.findUnique({
     where: { id: ev.id },
     include: { tags: true, notes: true },
@@ -168,7 +168,10 @@ adminRouter.post("/evidence/:id/release-hold", async (req, res) => {
     },
     settings
   );
-  const sched = computeScheduledDeletionAt(full.createdAt, rc, settings);
+  const sched = computeEvidenceScheduledDeletion(full.createdAt, rc, settings, {
+    evidenceType: full.type,
+    caseNumber: full.caseNumber,
+  });
   const updated = await prisma.evidenceItem.update({
     where: { id: ev.id },
     data: { legalHold: false, retentionClass: rc, scheduledDeletionAt: sched },

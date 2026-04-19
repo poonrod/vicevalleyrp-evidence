@@ -57,3 +57,21 @@ export function computeScheduledDeletionAt(
   d.setUTCDate(d.getUTCDate() + days);
   return d;
 }
+
+/** Like {@link computeScheduledDeletionAt}, but short unlinked videos use `videoWithoutCaseDeleteAfterDays`. */
+export function computeEvidenceScheduledDeletion(
+  anchorUtc: Date,
+  retentionClass: string,
+  s: RetentionSettings,
+  opts: { evidenceType: string; caseNumber?: string | null }
+): Date | null {
+  const scheduled = computeScheduledDeletionAt(anchorUtc, retentionClass, s);
+  if (scheduled === null) return null;
+  const hasCase = !!(opts.caseNumber && String(opts.caseNumber).trim());
+  if (opts.evidenceType === "video" && !hasCase && retentionClass === "default") {
+    const d = new Date(anchorUtc);
+    d.setUTCDate(d.getUTCDate() + s.videoWithoutCaseDeleteAfterDays);
+    return d;
+  }
+  return scheduled;
+}
