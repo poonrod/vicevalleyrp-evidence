@@ -195,23 +195,6 @@ RegisterNUICallback('bodycam_clip_put_done', function(body, cb)
     completeAfterClipPut(tostring(cid), body)
 end)
 
-RegisterNUICallback('bodycam_clip_live_frames_begin', function(body, cb)
-    cb({})
-    if type(body) ~= 'table' then return end
-    local cid = tostring(body.correlation or '')
-    if cid == '' then return end
-    local pend = pendingPresigned[cid]
-    if not pend or not pend.clipMode then return end
-    Citizen.SetTimeout(80, function()
-        local p2 = pendingPresigned[cid]
-        if not p2 or not p2.clipMode then return end
-        if p2.wantClipHoldFp then
-            CameraClient.BeginClipSessionFirstPerson()
-        end
-        captureClipFrame(0, p2.maxFrames, cid, p2.data, p2.wantFpPerFrame, p2.gap, p2.shotRes, p2.wantClipHoldFp)
-    end)
-end)
-
 local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes, clipHoldFp)
     if i == 0 then
         clipCaptureSuppressRadar()
@@ -260,6 +243,23 @@ local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes, c
         end
     end)
 end
+
+RegisterNUICallback('bodycam_clip_live_frames_begin', function(body, cb)
+    cb({})
+    if type(body) ~= 'table' then return end
+    local cid = tostring(body.correlation or '')
+    if cid == '' then return end
+    local pend = pendingPresigned[cid]
+    if not pend or not pend.clipMode then return end
+    Citizen.SetTimeout(80, function()
+        local p2 = pendingPresigned[cid]
+        if not p2 or not p2.clipMode then return end
+        if p2.wantClipHoldFp then
+            CameraClient.BeginClipSessionFirstPerson()
+        end
+        captureClipFrame(0, p2.maxFrames, cid, p2.data, p2.wantFpPerFrame, p2.gap, p2.shotRes, p2.wantClipHoldFp)
+    end)
+end)
 
 local function startCombinedAudioRecordFromPresign(data)
     if Bodycam.clipRecording then
