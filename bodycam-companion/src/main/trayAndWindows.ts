@@ -368,10 +368,28 @@ export function createTrayAndWindows(
     });
   };
 
+  const bringAudioSetupToFront = (win: BrowserWindow): void => {
+    try {
+      win.show();
+      win.focus();
+      win.moveTop();
+      win.setAlwaysOnTop(true);
+      setTimeout(() => {
+        try {
+          if (!win.isDestroyed()) win.setAlwaysOnTop(false);
+        } catch {
+          /* ignore */
+        }
+      }, 800);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const showAudioSetupModalInternal = (): Promise<"done" | "closed"> => {
     return new Promise((resolve) => {
       if (audioSetupWin && !audioSetupWin.isDestroyed()) {
-        audioSetupWin.focus();
+        bringAudioSetupToFront(audioSetupWin);
         resolve("done");
         return;
       }
@@ -387,19 +405,37 @@ export function createTrayAndWindows(
 
       audioSetupWin = new BrowserWindow({
         width: 560,
-        height: 440,
+        height: 480,
+        center: true,
         resizable: true,
         minimizable: true,
         maximizable: false,
         title: "Bodycam Companion — Audio setup",
         autoHideMenuBar: true,
-        show: true,
+        show: false,
         webPreferences: {
           preload: preloadPath("audioSetupPreload.js"),
           contextIsolation: true,
           nodeIntegration: false,
         },
       });
+
+      let shown = false;
+      const revealOnce = () => {
+        if (shown || !audioSetupWin || audioSetupWin.isDestroyed()) return;
+        shown = true;
+        bringAudioSetupToFront(audioSetupWin);
+      };
+
+      audioSetupWin.once("ready-to-show", revealOnce);
+      setTimeout(revealOnce, 3000);
+
+      audioSetupWin.webContents.on(
+        "did-fail-load",
+        (_e, code, desc, url) => {
+          logLine("error", "Audio setup page failed to load", { code, desc, url });
+        }
+      );
 
       audioSetupWin.on("closed", () => {
         audioSetupWin = null;
@@ -507,6 +543,12 @@ export function createTrayAndWindows(
       persistConfig(c);
     }
     syncTrayVisibility();
+    c = getConfig();
+    if (!c.audioSetupCompleted) {
+      logLine("info", "Second BodycamCompanion launch — opening first-run audio setup");
+      void showAudioSetupModalInternal();
+      return;
+    }
     openSettingsWindowInternal();
   };
 

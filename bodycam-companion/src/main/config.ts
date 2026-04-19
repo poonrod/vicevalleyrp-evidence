@@ -20,10 +20,7 @@ export interface AppConfig {
   wasapiInputDevice: string;
   /** When true, no tray icon (HTTP + FiveM still work). Relaunch app to open Main menu again. */
   hideTrayIcon: boolean;
-  /**
-   * After the first-run audio device wizard (or skip). Existing `config.json` files without this key
-   * are treated as already completed so upgrades are not interrupted.
-   */
+  /** After the first-run audio device wizard (or skip). Only true when explicitly stored in `config.json`. */
   audioSetupCompleted: boolean;
 }
 
@@ -74,11 +71,9 @@ export function loadConfig(safeStorage?: SafeStorage): AppConfig {
   } catch (e) {
     logLine("warn", "config.json parse failed, using defaults", { err: String(e) });
   }
-  const audioSetupCompleted = !configFileReadOk
-    ? false
-    : Object.prototype.hasOwnProperty.call(raw, "audioSetupCompleted")
-      ? !!raw.audioSetupCompleted
-      : true;
+  const hasAudioSetupKey = Object.prototype.hasOwnProperty.call(raw, "audioSetupCompleted");
+  const audioSetupCompleted =
+    configFileReadOk && hasAudioSetupKey ? !!raw.audioSetupCompleted : false;
   const apiToken = decryptTokenIfNeeded(raw, safeStorage);
   const apiTokenProtected =
     typeof raw.apiTokenProtected === "string" ? raw.apiTokenProtected : undefined;

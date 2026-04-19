@@ -13,7 +13,7 @@ Electron tray application that:
 
 - **Windows 10/11**
 - **Node 20+** (for development)
-- **FFmpeg** on `PATH`, or set **`FFMPEG_PATH`** to `ffmpeg.exe`, or place `resources/ffmpeg.exe` next to the package (see [resources/README.md](resources/README.md))
+- **FFmpeg**: `npm run pack:win` downloads a Windows **essentials** build into `resources/ffmpeg.exe` and ships it; on first launch the app copies it to `%APPDATA%\Bodycam\bin\ffmpeg.exe`. You can still override with **`FFMPEG_PATH`** or `PATH` (see [resources/README.md](resources/README.md)).
 - Evidence API **`FIVEM_API_SECRET`** and HTTPS **`apiBase`** configured in `%APPDATA%/Bodycam/config.json` (or env **`BODYCAM_API_TOKEN`** / **`FIVEM_API_SECRET`**)
 
 ## Config (`%APPDATA%/Bodycam/config.json`)
@@ -44,7 +44,7 @@ Electron tray application that:
 Nothing is committed as a binary. You **build** the app locally with **`@electron/packager`** (reliable under npm workspaces on Windows; no NSIS installer—distribute the folder or zip it).
 
 1. **App icon:** keep [`build-assets/app-icon.png`](build-assets/app-icon.png) (Vice Valley logo). `npm run pack:win` converts it to a Windows **`.ico`** for **`BodycamCompanion.exe`**, bundles the same PNG for the **tray icon**, and uses it for **`Uninstall.exe`**.
-2. Optional: copy a licensed **`ffmpeg.exe`** into [`resources/`](resources/) so it is bundled under `resources/` next to the exe (otherwise clients need FFmpeg on `PATH` or `FFMPEG_PATH`).
+2. `npm run pack:win` runs **`ffmpeg:win`** automatically (or run `npm run ffmpeg:win` once) to fetch FFmpeg into [`resources/ffmpeg.exe`](resources/) before packaging. Override the ZIP with **`FFMPEG_WIN_URL`** or refresh with **`FORCE_FFMPEG_DOWNLOAD=1`**.
 3. From monorepo root:
 
 ```bash

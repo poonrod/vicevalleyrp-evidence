@@ -1,9 +1,10 @@
 import { app, safeStorage } from "electron";
 import { createLocalHttpServer } from "./httpServer";
+import { ensureFfmpegInstalled } from "./ffmpegRecorder";
 import { RecordingSessionManager } from "./recordingSession";
 import { createTrayAndWindows } from "./trayAndWindows";
 import { loadConfig, saveConfig, type AppConfig } from "./config";
-import { ensureDirs } from "./paths";
+import { configPath, ensureDirs } from "./paths";
 import { isFivemRunning } from "./fivemDetector";
 import { logLine } from "./logger";
 import { startUploadQueueWorker } from "./uploadQueue";
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
   await app.whenReady();
   ensureDirs();
   refreshConfig();
+  ensureFfmpegInstalled();
 
   app.setLoginItemSettings({
     openAtLogin: config.autoStartWithWindows,
@@ -111,6 +113,9 @@ async function main(): Promise<void> {
   );
 
   if (!config.audioSetupCompleted) {
+    logLine("info", "Showing first-run audio setup wizard", {
+      configPath: configPath(),
+    });
     await trayCtl.showAudioSetupModal();
     refreshConfig();
   }

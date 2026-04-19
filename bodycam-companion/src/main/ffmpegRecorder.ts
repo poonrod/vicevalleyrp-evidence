@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
 import path from "path";
 import { logLine } from "./logger";
+import { appDataBodycamRoot, ensureDirs } from "./paths";
 
 export interface RecorderOptions {
   outputPath: string;
@@ -12,16 +13,65 @@ export interface RecorderOptions {
   wasapiInputDevice: string;
 }
 
+/** Installed copy under `%APPDATA%/Bodycam/bin` (populated from the bundled exe on first launch). */
+export function userDataFfmpegPath(): string {
+  return path.join(appDataBodycamRoot(), "bin", "ffmpeg.exe");
+}
+
+/** Shipped next to the app (`resources/resources/ffmpeg.exe` when `extraResource` is the `resources/` folder). */
+function packagedBundledFfmpeg(): string | null {
+  if (!process.resourcesPath) return null;
+  const nested = path.join(process.resourcesPath, "resources", "ffmpeg.exe");
+  if (fs.existsSync(nested)) return nested;
+  const flat = path.join(process.resourcesPath, "ffmpeg.exe");
+  if (fs.existsSync(flat)) return flat;
+  return null;
+}
+
+/**
+ * Copies bundled `ffmpeg.exe` into `%APPDATA%/Bodycam/bin/ffmpeg.exe` once (writable path for spawn).
+ * Call after `app.whenReady()` so `process.resourcesPath` is set in packaged builds.
+ */
+export function ensureFfmpegInstalled(): void {
+  ensureDirs();
+  const dest = userDataFfmpegPath();
+  try {
+    if (fs.existsSync(dest)) {
+      const st = fs.statSync(dest);
+      if (st.size > 512 * 1024) return;
+    }
+  } catch {
+    /* re-copy below */
+  }
+
+  const src = packagedBundledFfmpeg() || devBundledFfmpeg();
+  if (!src) {
+    logLine("warn", "No bundled ffmpeg.exe in app resources — use PATH or set FFMPEG_PATH");
+    return;
+  }
+  try {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+    logLine("info", "Installed bundled FFmpeg for this user", { dest });
+  } catch (e) {
+    logLine("error", "Failed to install bundled FFmpeg", { err: String(e) });
+  }
+}
+
+function devBundledFfmpeg(): string | null {
+  const p = path.join(__dirname, "..", "..", "resources", "ffmpeg.exe");
+  return fs.existsSync(p) ? p : null;
+}
+
 function resolveFfmpegPath(): string {
   const env = process.env.FFMPEG_PATH?.trim();
   if (env && fs.existsSync(env)) return env;
-  // Packaged app (electron-builder `extraResources` → next to the exe’s resources folder)
-  if (process.resourcesPath) {
-    const packaged = path.join(process.resourcesPath, "ffmpeg.exe");
-    if (fs.existsSync(packaged)) return packaged;
-  }
-  const bundled = path.join(__dirname, "..", "..", "resources", "ffmpeg.exe");
-  if (fs.existsSync(bundled)) return bundled;
+  const user = userDataFfmpegPath();
+  if (fs.existsSync(user)) return user;
+  const packaged = packagedBundledFfmpeg();
+  if (packaged) return packaged;
+  const bundled = devBundledFfmpeg();
+  if (bundled) return bundled;
   return "ffmpeg";
 }
 
