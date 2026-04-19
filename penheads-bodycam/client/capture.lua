@@ -10,6 +10,21 @@ CaptureClient = {}
 local pendingPresigned = {}
 local presignedCorrelation = 0
 
+--- Hide GTA radar/minimap during clip frame grabs so it is not burned into the WebM.
+local clipCaptureRadarSuppressed = false
+
+local function clipCaptureSuppressRadar()
+    if clipCaptureRadarSuppressed then return end
+    clipCaptureRadarSuppressed = true
+    DisplayRadar(false)
+end
+
+local function clipCaptureRestoreRadar()
+    if not clipCaptureRadarSuppressed then return end
+    clipCaptureRadarSuppressed = false
+    DisplayRadar(true)
+end
+
 local function canStartCombinedAudioRecord()
     if not PermissionsClient.IsAllowed() then return false end
     if not EquipmentClient.IsEquipped() then return false end
@@ -29,6 +44,7 @@ end
 local function completeAfterClipPut(cid, body)
     CameraClient.EndSnapshotFirstPerson()
     CameraClient.EndClipSessionFirstPerson()
+    clipCaptureRestoreRadar()
     local pending = pendingPresigned[cid]
     if not pending or not pending.clipMode then return end
     pendingPresigned[cid] = nil
@@ -180,6 +196,9 @@ RegisterNUICallback('bodycam_clip_put_done', function(body, cb)
 end)
 
 local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes, clipHoldFp)
+    if i == 0 then
+        clipCaptureSuppressRadar()
+    end
     local jpgQ = tonumber(Config.ClipJpegQuality) or 0.88
     jpgQ = math.max(0.55, math.min(0.98, jpgQ))
     if wantFp and not clipHoldFp then
@@ -196,6 +215,7 @@ local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes, c
             if clipHoldFp then
                 CameraClient.EndClipSessionFirstPerson()
             end
+            clipCaptureRestoreRadar()
             pendingPresigned[cid] = nil
             Bodycam.clipRecording = false
             SendNUIMessage({ type = 'bodycam_clip_abort', correlation = cid })
@@ -212,6 +232,7 @@ local function captureClipFrame(i, maxFrames, cid, data, wantFp, gap, shotRes, c
             if clipHoldFp then
                 CameraClient.EndClipSessionFirstPerson()
             end
+            clipCaptureRestoreRadar()
             Citizen.SetTimeout(520, function()
                 SendNUIMessage({ type = 'bodycam_clip_end', correlation = cid })
             end)
@@ -312,8 +333,8 @@ local function startWebmClipFromPresign(data)
     }
     Bodycam.clipRecording = true
 
-    -- First-person **footage**: UseFirstPersonForClipRecording. Player POV: only "hold" mode keeps them
-    -- in FP the whole time; default is per-frame FP (brief switch per screenshot) so view restores between frames.
+    -- First-person **footage**: UseFirstPersonForClipRecording. Player POV: "hold" = one FP for whole burst;
+    -- per-frame FP toggles every screenshot (visible flicker — prefer ClipFirstPersonHoldWhileRecording = true).
     local clipWantsFirstPerson = Config.UseFirstPersonForClipRecording ~= false
     if Config.ClipFirstPersonRequiresSnapshotToggle then
         clipWantsFirstPerson = clipWantsFirstPerson and Bodycam.personal.firstPerson
@@ -331,7 +352,7 @@ local function startWebmClipFromPresign(data)
     local clipW, clipH = parseClipTargetSize()
     local clipKbps = math.floor(tonumber(Config.ShortClipBitrateKbps) or 2000)
     if clipKbps < 400 then clipKbps = 400 end
-    if clipKbps > 12000 then clipKbps = 12000 end
+    if clipKbps > 60000 then clipKbps = 60000 end
 
     local capMode = tostring(Config.ClipAudioCaptureMode or 'mic'):lower()
     if capMode ~= 'display' and capMode ~= 'display_plus_mic' and capMode ~= 'mic' then

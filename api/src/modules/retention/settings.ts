@@ -5,7 +5,7 @@ export type RetentionSettings = {
   tempDeleteAfterDays: number;
   archivedDeleteAfterDays: number;
   longVideoDeleteAfterDays: number;
-  /** Bodycam-style clips (and other `default`-class video) with no case number. */
+  /** Bodycam-style clips (and other `default`-class video) with no case number. UTC calendar days from `createdAt` (2 ≈ 48h at the same clock time). */
   videoWithoutCaseDeleteAfterDays: number;
   notesCountAsModified: boolean;
   tagsCountAsModified: boolean;
@@ -44,7 +44,7 @@ export const DEFAULT_RETENTION_SETTINGS: RetentionSettings = {
   tempDeleteAfterDays: 1,
   archivedDeleteAfterDays: 2555,
   longVideoDeleteAfterDays: 3,
-  videoWithoutCaseDeleteAfterDays: 3,
+  videoWithoutCaseDeleteAfterDays: 2,
   notesCountAsModified: true,
   tagsCountAsModified: true,
   caseNumberCountsAsProtected: true,
@@ -56,12 +56,12 @@ export const DEFAULT_RETENTION_SETTINGS: RetentionSettings = {
   shortClipMaxSeconds: 30,
   mediumClipMaxSeconds: 300,
   longVideoMaxSeconds: 1800,
-  maxUploadSizeMB: 100,
-  shortClipResolution: "1280x720",
-  shortClipBitrateKbps: 4500,
+  maxUploadSizeMB: 250,
+  shortClipResolution: "1920x1080",
+  shortClipBitrateKbps: 22000,
   shortClipFps: 30,
-  mediumClipResolution: "1280x720",
-  mediumClipBitrateKbps: 1500,
+  mediumClipResolution: "1920x1080",
+  mediumClipBitrateKbps: 12000,
   mediumClipFps: 30,
   longVideoResolution: "960x540",
   longVideoBitrateKbps: 1000,

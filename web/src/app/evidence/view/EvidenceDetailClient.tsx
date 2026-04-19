@@ -32,6 +32,7 @@ export default function EvidenceDetailClient() {
   const [shareNeverExpires, setShareNeverExpires] = useState(true);
   const [shareExpiresLocal, setShareExpiresLocal] = useState("");
   const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [downloadBusy, setDownloadBusy] = useState(false);
 
   useEffect(() => {
     axonActivationPlayedRef.current = false;
@@ -120,6 +121,33 @@ export default function EvidenceDetailClient() {
   const durationSec =
     typeof ev.durationSeconds === "number" && !Number.isNaN(ev.durationSeconds) ? ev.durationSeconds : null;
 
+  async function downloadMedia() {
+    if (!url || !ev) return;
+    const rawName = String(ev.fileName ?? "evidence");
+    const safeName = rawName.replace(/[/\\?%*:|"<>]/g, "_") || "evidence";
+    setDownloadBusy(true);
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(t || res.statusText);
+      }
+      const blob = await res.blob();
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = u;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(u);
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadBusy(false);
+    }
+  }
+
   async function deleteEvidence(row: Record<string, unknown>) {
     const name = String(row.fileName ?? "item");
     if (!confirm(`Delete “${name}”? This cannot be undone.`)) return;
@@ -155,11 +183,21 @@ export default function EvidenceDetailClient() {
               >
                 Get secure view URL
               </button>
-              {url && (
-                <a href={url} target="_blank" rel="noreferrer" className="text-sm text-blue-400 underline">
-                  Open media
-                </a>
-              )}
+              {url ? (
+                <>
+                  <a href={url} target="_blank" rel="noreferrer" className="text-sm text-blue-400 underline">
+                    Open media
+                  </a>
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 rounded-lg bg-zinc-700 text-sm disabled:opacity-50"
+                    disabled={downloadBusy}
+                    onClick={() => void downloadMedia()}
+                  >
+                    {downloadBusy ? "Preparing…" : "Download"}
+                  </button>
+                </>
+              ) : null}
               {showDelete ? (
                 <button
                   type="button"

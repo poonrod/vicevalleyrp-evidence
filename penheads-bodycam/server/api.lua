@@ -96,19 +96,47 @@ function Api.EnsureIncident(incidentId, cb)
 end
 
 function Api.PingEvidenceTerminal(cb)
-    if Config.ApiSecret == '' then
-        cb(false, 'bodycam_api_secret not set')
+    local secret = tostring(Config.ApiSecret or ''):match('^%s*(.-)%s*$') or ''
+    if secret == '' then
+        cb(false, 'bodycam_api_secret not set (must match FIVEM_API_SECRET on the API)')
         return
     end
-    local url = Config.ApiBaseUrl:gsub('/$', '') .. '/internal/fivem/ping'
-    PerformHttpRequest(url, function(code, _response)
-        if code >= 200 and code < 300 then
-            cb(true, nil)
-        else
-            cb(false, 'HTTP ' .. tostring(code))
+    local base = tostring(Config.ApiBaseUrl or ''):gsub('/$', ''):match('^%s*(.-)%s*$') or ''
+    if base == '' or (base:sub(1, 7) ~= 'http://' and base:sub(1, 8) ~= 'https://') then
+        cb(false, 'bodycam_api_base missing or invalid (expected http:// or https:// URL)')
+        return
+    end
+    local url = base .. '/internal/fivem/ping'
+    PerformHttpRequest(url, function(code, response)
+        local c = tonumber(code)
+        if not c or c < 200 or c >= 300 then
+            local detail
+            if c == nil or c == 0 then
+                detail = 'Unreachable (wrong URL, API down, firewall, or TLS/DNS failure)'
+            elseif c == 401 then
+                detail = 'HTTP 401 — X-FiveM-Secret does not match FIVEM_API_SECRET'
+            elseif c == 503 then
+                detail = 'HTTP 503 — API has FIVEM_API_SECRET unset (internal routes disabled)'
+            else
+                detail = 'HTTP ' .. tostring(code)
+            end
+            if type(response) == 'string' and response ~= '' then
+                local snippet = response:gsub('%s+', ' '):sub(1, 160)
+                if #snippet > 0 then
+                    detail = detail .. ' — ' .. snippet
+                end
+            end
+            cb(false, detail)
+            return
         end
+        local okj, data = pcall(json.decode, response or '{}')
+        if not okj or type(data) ~= 'table' or data.ok ~= true then
+            cb(false, 'Unexpected response (not the Vice Valley evidence API JSON {"ok":true})')
+            return
+        end
+        cb(true, nil)
     end, 'GET', '', {
-        ['X-FiveM-Secret'] = Config.ApiSecret,
+        ['X-FiveM-Secret'] = secret,
     })
 end
 

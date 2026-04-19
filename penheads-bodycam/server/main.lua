@@ -130,9 +130,10 @@ AddEventHandler('onResourceStart', function(resourceName)
         print('')
         Api.PingEvidenceTerminal(function(ok, err)
             if ok then
-                print('^2SUCCESSFULLY CONNECTED TO EVIDENCE TERMINAL^7')
+                print('^2[bodycam] Evidence API connected — presigned upload pipeline ready.^7')
             else
-                print(('^1[bodycam] Evidence terminal not reachable (%s)^7'):format(tostring(err)))
+                print(('^1[bodycam] Evidence API NOT connected: %s^7'):format(tostring(err)))
+                print('^3[bodycam] Check server.cfg: bodycam_api_base (reachable from FXServer) and bodycam_api_secret (= FIVEM_API_SECRET).^7')
             end
         end)
     end)

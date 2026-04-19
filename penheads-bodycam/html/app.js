@@ -633,46 +633,18 @@ function loadClipWatermarkLogo() {
   });
 }
 
-/** Burned-in corner watermark: ISO time + device line + AXON DELTA GOLD mark. */
+/** Burned-in top-right mark: yellow AXON-style logo only (no timestamp / serial text). */
 function drawBodycamWatermark(ctx, s, cw) {
   if (!s || !ctx) return;
+  if (!s.logo || !s.logo.complete || !s.logo.naturalWidth) return;
   const pad = Math.max(10, Math.round(cw * 0.011));
-  const fontPx = Math.max(11, Math.round(cw * 0.0165));
-  const line1 = s.wmTime || "";
-  const line2 = s.wmLine2 || "AXON BODY WF x0000000";
+  const basePx = Math.max(20, Math.round(cw * 0.034));
+  const logoW = Math.round(basePx * 3.2);
+  const logoH = Math.round((logoW * s.logo.naturalHeight) / s.logo.naturalWidth);
+  const lx = cw - pad - logoW;
+  const ly = pad;
   ctx.save();
-  ctx.font = `${fontPx}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
-  ctx.textBaseline = "top";
-  const tw1 = ctx.measureText(line1).width;
-  const tw2 = ctx.measureText(line2).width;
-  const textW = Math.max(tw1, tw2);
-  const logoW = Math.round(fontPx * 4.1);
-  let logoH = logoW;
-  if (s.logo && s.logo.complete && s.logo.naturalWidth) {
-    logoH = Math.round((logoW * s.logo.naturalHeight) / s.logo.naturalWidth);
-  }
-  const gapTextLogo = pad * 0.55;
-  const blockW = textW + gapTextLogo + logoW;
-  const xText = cw - pad - blockW;
-  const y = pad;
-  const drawLine = (txt, ly) => {
-    ctx.lineJoin = "round";
-    ctx.lineWidth = Math.max(2, fontPx * 0.18);
-    ctx.strokeStyle = "rgba(255,255,255,0.95)";
-    ctx.shadowColor = "rgba(0,0,0,0.8)";
-    ctx.shadowBlur = Math.max(2, fontPx * 0.14);
-    ctx.fillStyle = "rgba(12,12,12,0.42)";
-    ctx.strokeText(txt, xText, ly);
-    ctx.shadowBlur = 0;
-    ctx.fillText(txt, xText, ly);
-  };
-  drawLine(line1, y);
-  drawLine(line2, y + fontPx * 1.22);
-  if (s.logo && s.logo.complete && s.logo.naturalWidth) {
-    const lx = xText + textW + gapTextLogo;
-    const ly = y - fontPx * 0.08;
-    ctx.drawImage(s.logo, lx, ly, logoW, logoH);
-  }
+  ctx.drawImage(s.logo, lx, ly, logoW, logoH);
   ctx.restore();
 }
 
@@ -854,13 +826,13 @@ async function startClipSession(d) {
   const tracks = [...videoOnly.getVideoTracks(), ...audioTracksForRecorder];
   const merged = new MediaStream(tracks);
 
-  const kbps = Math.max(400, Math.min(12000, Number(d.clipVideoBitrateKbps) || 1400));
+  const kbps = Math.max(400, Math.min(60000, Number(d.clipVideoBitrateKbps) || 1400));
   const recOpts = {
     mimeType: mime,
     videoBitsPerSecond: kbps * 1000,
   };
   if (hasAudio) {
-    recOpts.audioBitsPerSecond = displayStream ? 128_000 : 96_000;
+    recOpts.audioBitsPerSecond = displayStream ? 192_000 : 128_000;
   }
 
   let recorder;
@@ -970,7 +942,7 @@ async function finalizeClipSession() {
   }
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("recorder stop timeout")), 35_000);
+      const timer = setTimeout(() => reject(new Error("recorder stop timeout")), 60_000);
       s.recorder.onstop = () => {
         clearTimeout(timer);
         resolve();

@@ -8,6 +8,8 @@ Bodycam.sessionStartMs = nil
 Bodycam.clipRecording = false
 --- NUI-only combined mic + desktop (getDisplayMedia) session; Lua never sees PCM.
 Bodycam.combinedAudioRecording = false
+--- Shown once per session when clip audio uses display* (see Config.ClipDisplayAudioSetupHint).
+Bodycam.displayAudioHintShown = false
 Bodycam.personal = {
     autoTaser = true,
     autoFirearm = true,
@@ -75,6 +77,17 @@ function Bodycam.SetActive(on, sourceKind)
     if on then
         Bodycam.sessionStartMs = GetGameTimer()
         TriggerServerEvent('bodycam:server:getOrCreateIncident')
+        if Config.EnableClipMode
+            and Config.ClipDisplayAudioSetupHint ~= false
+            and (cap == 'display' or cap == 'display_plus_mic')
+            and not Bodycam.displayAudioHintShown
+        then
+            Bodycam.displayAudioHintShown = true
+            local acmd = tostring(Config.BodycamClipAudioConsoleCommand or 'bodycamclipaudio'):match('^%s*(.-)%s*$') or 'bodycamclipaudio'
+            Bodycam.Notify(
+                ('~b~Game/headphone audio:~w~ F8 ~y~%s~w~ — GTA monitor + ~y~Share audio~w~, Allow (once per PC).'):format(acmd)
+            )
+        end
     elseif was and Config.EnableClipMode and sessionStart and not Bodycam.clipRecording then
         local sessionDurMs = GetGameTimer() - sessionStart
         Bodycam.sessionStartMs = nil

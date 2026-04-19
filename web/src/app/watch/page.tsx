@@ -18,6 +18,7 @@ function WatchInner() {
   const token = (sp.get("token") || "").trim();
   const [data, setData] = useState<SharePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [downloadBusy, setDownloadBusy] = useState(false);
   const activationPlayedRef = useRef(false);
 
   useEffect(() => {
@@ -90,15 +91,54 @@ function WatchInner() {
 
   const isVideo = data.mimeType.startsWith("video/");
 
+  async function downloadShared() {
+    if (!data?.streamUrl) return;
+    const rawName = String(data.fileName || "evidence");
+    const safeName = rawName.replace(/[/\\?%*:|"<>]/g, "_") || "evidence";
+    setDownloadBusy(true);
+    try {
+      const res = await fetch(data.streamUrl, { mode: "cors" });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(t || res.statusText);
+      }
+      const blob = await res.blob();
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = u;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(u);
+    } catch {
+      window.open(data.streamUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadBusy(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-200 flex flex-col">
       <header className="border-b border-zinc-800 px-4 py-3 flex flex-wrap gap-2 items-center justify-between">
         <h1 className="text-sm font-medium truncate">Shared evidence — {data.fileName}</h1>
-        {data.linkExpiresAt ? (
-          <span className="text-xs text-zinc-500">Link expires {new Date(data.linkExpiresAt).toLocaleString()}</span>
-        ) : (
-          <span className="text-xs text-zinc-500">Link does not expire</span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {isVideo ? (
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-lg bg-zinc-800 text-xs disabled:opacity-50"
+              disabled={downloadBusy}
+              onClick={() => void downloadShared()}
+            >
+              {downloadBusy ? "Preparing…" : "Download"}
+            </button>
+          ) : null}
+          {data.linkExpiresAt ? (
+            <span className="text-xs text-zinc-500">Link expires {new Date(data.linkExpiresAt).toLocaleString()}</span>
+          ) : (
+            <span className="text-xs text-zinc-500">Link does not expire</span>
+          )}
+        </div>
       </header>
       <main
         className="flex-1 p-4 flex items-center justify-center"

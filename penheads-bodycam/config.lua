@@ -94,26 +94,25 @@ Config.EnableClipMode = true
 Config.ClipMinActiveSeconds = 5
 -- Minimum **recorded WebM** length (seconds); clips shorter than this are discarded (NUI) and the player is notified.
 Config.ClipMinUploadSeconds = 5
--- Clip FPS: 24 is easier on screenshot-basic + NUI encoder than 30 (less hitching / gameplay lag).
+-- Clip FPS: 30 matches common displays and looks smoother than 24 (tradeoff: slightly more screenshot-basic load).
 -- Tier targets (short = bodycam WebM; medium/long for policy / future uploads). ClipRecord* mirrors short.
-Config.ShortClipRecordFps = 24
-Config.MediumClipRecordFps = 24
-Config.LongVideoRecordFps = 24
-Config.ClipRecordFps = 24
-Config.ClipRecordFpsMax = 24
--- ShortClipMaxSeconds (30) * target FPS + small headroom; avoids oversized buffers.
-Config.ClipMaxFramesCap = 800
-Config.ClipEstimatedMaxMB = 64
+Config.ShortClipRecordFps = 30
+Config.MediumClipRecordFps = 30
+Config.LongVideoRecordFps = 30
+Config.ClipRecordFps = 30
+Config.ClipRecordFpsMax = 30
+-- ShortClipMaxSeconds (30) * target FPS + headroom; avoids oversized buffers.
+Config.ClipMaxFramesCap = 1000
+Config.ClipEstimatedMaxMB = 220
 -- When true, WebM clip **frames** use a first-person angle (chest-cam style). Turn off for third-person clips.
 Config.UseFirstPersonForClipRecording = true
--- When true, the **player camera** stays in first person for the whole clip (one long switch). When false
--- (default), only switches to first person **around each screenshot** then restores — same POV between
--- frames as normal gameplay, but the **saved video** is still first person.
-Config.ClipFirstPersonHoldWhileRecording = false
+-- When true, the **player camera** stays in first person for the whole clip burst (one switch in/out — no strobe).
+-- When false, FP toggles **every frame** during capture → harsh third/first **flicker** while the WebM is built.
+Config.ClipFirstPersonHoldWhileRecording = true
 -- If true, clip first-person also requires the personal "First-person capture" toggle in /bcamconfig.
 Config.ClipFirstPersonRequiresSnapshotToggle = false
--- JPEG quality for clip frames (before VP9). Slightly below max = less NUI churn, still very sharp at 720p.
-Config.ClipJpegQuality = 0.90
+-- JPEG quality for clip frames (before VP9). Higher = sharper source frames for the VP9 encoder at 1080p.
+Config.ClipJpegQuality = 0.96
 -- Mix the player's real microphone (browser getUserMedia) into the WebM when supported.
 Config.EnableClipRecordingMicrophone = true
 -- If true, NUI warms up the mic when bodycam turns ON (Chromium may show a permission prompt early).
@@ -121,18 +120,19 @@ Config.EnableClipRecordingMicrophone = true
 Config.ClipMicrophoneWarmupOnActivate = false
 -- Clip audio source (see README "Game + voice chat audio"):
 --   mic = microphone only (getUserMedia).
---   display = Windows monitor / "Entire screen" loopback via browser screen share (game + default output, incl. typical Mumble/pma-voice to headphones).
---   display_plus_mic = loopback + microphone mixed (best when CEF allows it).
--- display* modes call getDisplayMedia inside FiveM NUI; many builds throw NotAllowedError / Invalid state (CEF).
--- Default mic = reliable clips; opt in to display_plus_mic via server.cfg when players can use bodycamclipaudio.
--- Override without editing this file: setr bodycam_clip_audio_mode display_plus_mic
-Config.ClipAudioCaptureMode = "mic"
+--   display = Windows monitor / "Entire screen" loopback via getDisplayMedia + "Share audio" (what plays on that display — usually same as default output / headphones).
+--   display_plus_mic = that loopback + microphone mixed (recommended for bodycam).
+-- display* modes need a one-time F8 `bodycamclipaudio` grant (monitor + Share audio); some FiveM CEF builds fail — then use setr bodycam_clip_audio_mode mic or Stereo Mix deviceId.
+-- Override without editing this file: setr bodycam_clip_audio_mode mic
+Config.ClipAudioCaptureMode = "display_plus_mic"
 local _clipAudioModeCv = GetConvar('bodycam_clip_audio_mode', '')
 if type(_clipAudioModeCv) == 'string' and _clipAudioModeCv:gsub('%s+', '') ~= '' then
     Config.ClipAudioCaptureMode = _clipAudioModeCv:match('^%s*(.-)%s*$') or Config.ClipAudioCaptureMode
 end
 -- F8 console: run this command to open NUI and click "Allow monitor audio" once; choice is remembered (see README).
 Config.BodycamClipAudioConsoleCommand = "bodycamclipaudio"
+-- First bodycam ON each session: brief hint to run F8 setup (so default output / game audio is actually captured).
+Config.ClipDisplayAudioSetupHint = true
 -- "voice" = echo/noise suppression (Discord-like). "ambient" = lighter processing so room/speaker
 -- bleed is louder (still mic-only). For more room/speaker without extra apps, prefer "ambient".
 Config.ClipMicrophoneProcessing = "voice"
@@ -152,14 +152,14 @@ Config.CombinedAudioMaxSeconds = 90
 Config.ShortClipMaxSeconds = 30
 Config.MediumClipMaxSeconds = 300
 Config.LongVideoMaxSeconds = 1800
-Config.MaxClipFileSizeMB = 100
--- 720p @ strong bitrates: sharp evidence, fewer dropped frames than 1080p30 (smoother capture + playback).
-Config.ShortClipResolution = "1280x720"
-Config.ShortClipBitrateKbps = 5200
-Config.MediumClipResolution = "1280x720"
-Config.MediumClipBitrateKbps = 4800
-Config.LongVideoResolution = "1280x720"
-Config.LongVideoBitrateKbps = 4000
+Config.MaxClipFileSizeMB = 250
+-- 1080p @ high bitrate: maximum practical WebM quality for evidence (ensure API maxUploadSizeMB covers ClipEstimatedMaxMB).
+Config.ShortClipResolution = "1920x1080"
+Config.ShortClipBitrateKbps = 22000
+Config.MediumClipResolution = "1920x1080"
+Config.MediumClipBitrateKbps = 12000
+Config.LongVideoResolution = "1920x1080"
+Config.LongVideoBitrateKbps = 8000
 Config.VideoCodec = "h264"
 Config.RequireCaseNumberForLongVideos = true
 Config.LongVideoWithoutCaseAction = "reject"
