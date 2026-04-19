@@ -1,5 +1,6 @@
 dist/
 release/
 build-assets/icon.ico
+build-assets/Uninstall.exe
 node_modules/
 *.log

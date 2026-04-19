@@ -52,7 +52,7 @@ Output folder:
 **[`release/BodycamCompanion-win32-x64/`](release/BodycamCompanion-win32-x64/)**
 
 - **`BodycamCompanion.exe`** — what players run (keep the whole folder: it includes `resources/`, `locales`, etc.).
-- **`Uninstall.cmd`** / **`Uninstall.ps1`** — double-click `Uninstall.cmd` to remove the program folder (see [client-extras/README.md](client-extras/README.md)); use `Uninstall.ps1 -RemoveUserData` to also wipe `%APPDATA%\Bodycam`.
+- **`Uninstall.exe`** — double-click to remove the program folder (see [client-extras/README.md](client-extras/README.md)); run `Uninstall.exe --remove-user-data` to also wipe `%APPDATA%\Bodycam`.
 - Zip **`BodycamCompanion-win32-x64`** and send that archive to clients, or ship it via your launcher.
 
 Evidence API URL and secret are **not** baked in; officers configure `%APPDATA%/Bodycam/config.json` (or you supply a short setup guide).

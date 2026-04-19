@@ -18,10 +18,11 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@electron/packager": "^18.3.6",
     "@types/node": "^22.10.1",
     "electron": "33.4.11",
-    "@electron/packager": "^18.3.6",
-    "png-to-ico": "^2.1.8",
+    "rcedit": "^4.0.1",
+    "to-ico": "^1.1.5",
     "typescript": "^5.6.3"
   }
 }
