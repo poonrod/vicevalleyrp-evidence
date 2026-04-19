@@ -273,7 +273,8 @@ developerRouter.post("/maintenance/repair-scheduling", async (req, res) => {
       },
       settings
     );
-    const sched = computeEvidenceScheduledDeletion(e.timestampUtc, rc, settings, {
+    const schedAnchor = e.uploadedAt ?? e.timestampUtc;
+    const sched = computeEvidenceScheduledDeletion(schedAnchor, rc, settings, {
       evidenceType: e.type,
       caseNumber: e.caseNumber,
     });

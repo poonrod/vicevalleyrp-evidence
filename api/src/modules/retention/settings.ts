@@ -5,8 +5,16 @@ export type RetentionSettings = {
   tempDeleteAfterDays: number;
   archivedDeleteAfterDays: number;
   longVideoDeleteAfterDays: number;
-  /** Bodycam-style clips (and other `default`-class video) with no case number. UTC calendar days from `createdAt` (2 ≈ 48h at the same clock time). */
+  /**
+   * Fallback when {@link videoWithoutCaseDeleteAfterHours} is missing or not positive: unlinked default-tier
+   * video uses this many ×24 hours from the anchor (legacy).
+   */
   videoWithoutCaseDeleteAfterDays: number;
+  /**
+   * Unlinked `default`-class video: wall-clock hours after the anchor (upload-complete time) until auto-delete.
+   * When set to a positive number, overrides the day-based fallback for that rule.
+   */
+  videoWithoutCaseDeleteAfterHours: number;
   notesCountAsModified: boolean;
   tagsCountAsModified: boolean;
   caseNumberCountsAsProtected: boolean;
@@ -45,6 +53,7 @@ export const DEFAULT_RETENTION_SETTINGS: RetentionSettings = {
   archivedDeleteAfterDays: 2555,
   longVideoDeleteAfterDays: 3,
   videoWithoutCaseDeleteAfterDays: 2,
+  videoWithoutCaseDeleteAfterHours: 48,
   notesCountAsModified: true,
   tagsCountAsModified: true,
   caseNumberCountsAsProtected: true,
@@ -56,7 +65,7 @@ export const DEFAULT_RETENTION_SETTINGS: RetentionSettings = {
   shortClipMaxSeconds: 30,
   mediumClipMaxSeconds: 300,
   longVideoMaxSeconds: 1800,
-  maxUploadSizeMB: 250,
+  maxUploadSizeMB: 160,
   shortClipResolution: "1920x1080",
   shortClipBitrateKbps: 22000,
   shortClipFps: 30,
@@ -82,6 +91,7 @@ export const RETENTION_KEYS = [
   "archivedDeleteAfterDays",
   "longVideoDeleteAfterDays",
   "videoWithoutCaseDeleteAfterDays",
+  "videoWithoutCaseDeleteAfterHours",
   "notesCountAsModified",
   "tagsCountAsModified",
   "caseNumberCountsAsProtected",

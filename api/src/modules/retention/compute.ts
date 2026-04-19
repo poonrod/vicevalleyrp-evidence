@@ -58,7 +58,18 @@ export function computeScheduledDeletionAt(
   return d;
 }
 
-/** Like {@link computeScheduledDeletionAt}, but short unlinked videos use `videoWithoutCaseDeleteAfterDays`. */
+function unlinkedDefaultVideoRetentionHours(s: RetentionSettings): number {
+  const h = s.videoWithoutCaseDeleteAfterHours;
+  if (typeof h === "number" && !Number.isNaN(h) && h > 0) {
+    return Math.min(h, 24 * 365 * 10);
+  }
+  return Math.max(1, s.videoWithoutCaseDeleteAfterDays) * 24;
+}
+
+/**
+ * `anchorUtc` should be when the file was accepted into storage (e.g. `uploadedAt` / API complete time),
+ * not the in-game capture clock, so “delete 48h after upload” matches operator expectations.
+ */
 export function computeEvidenceScheduledDeletion(
   anchorUtc: Date,
   retentionClass: string,
@@ -69,9 +80,8 @@ export function computeEvidenceScheduledDeletion(
   if (scheduled === null) return null;
   const hasCase = !!(opts.caseNumber && String(opts.caseNumber).trim());
   if (opts.evidenceType === "video" && !hasCase && retentionClass === "default") {
-    const d = new Date(anchorUtc);
-    d.setUTCDate(d.getUTCDate() + s.videoWithoutCaseDeleteAfterDays);
-    return d;
+    const hours = unlinkedDefaultVideoRetentionHours(s);
+    return new Date(anchorUtc.getTime() + hours * 3600 * 1000);
   }
   return scheduled;
 }

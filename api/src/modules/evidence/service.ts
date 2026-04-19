@@ -123,7 +123,8 @@ export async function completeEvidenceForUser(user: User, body: CompleteBody & {
     settings
   );
 
-  const scheduled = computeEvidenceScheduledDeletion(new Date(body.timestampUtc), retentionClass, settings, {
+  const uploadCompleteAt = body.uploadedAt ? new Date(body.uploadedAt) : new Date();
+  const scheduled = computeEvidenceScheduledDeletion(uploadCompleteAt, retentionClass, settings, {
     evidenceType: body.type,
     caseNumber: body.caseNumber ?? null,
   });
@@ -147,7 +148,7 @@ export async function completeEvidenceForUser(user: User, body: CompleteBody & {
       playerServerId: body.playerServerId,
       gameLicenseIdentifier: body.gameLicenseIdentifier,
       timestampUtc: new Date(body.timestampUtc),
-      uploadedAt: body.uploadedAt ? new Date(body.uploadedAt) : new Date(),
+      uploadedAt: uploadCompleteAt,
       storageProvider: storage.kind,
       storageBucket: storage.getBucket(),
       storageNamespace: namespace,
@@ -297,7 +298,8 @@ export async function completeEvidenceForFivem(
     },
     settings
   );
-  const scheduled = computeEvidenceScheduledDeletion(new Date(body.timestampUtc), retentionClass, settings, {
+  const uploadCompleteAt = new Date();
+  const scheduled = computeEvidenceScheduledDeletion(uploadCompleteAt, retentionClass, settings, {
     evidenceType: body.type,
     caseNumber: body.caseNumber ?? null,
   });
@@ -321,6 +323,7 @@ export async function completeEvidenceForFivem(
       playerServerId: body.playerServerId,
       gameLicenseIdentifier: body.gameLicenseIdentifier,
       timestampUtc: new Date(body.timestampUtc),
+      uploadedAt: uploadCompleteAt,
       storageProvider: storage.kind,
       storageBucket: storage.getBucket(),
       storageNamespace: namespace,

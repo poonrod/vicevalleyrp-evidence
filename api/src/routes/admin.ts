@@ -174,7 +174,8 @@ adminRouter.post("/evidence/:id/release-hold", async (req, res) => {
     },
     settings
   );
-  const sched = computeEvidenceScheduledDeletion(full.createdAt, rc, settings, {
+  const schedAnchor = full.uploadedAt ?? full.createdAt;
+  const sched = computeEvidenceScheduledDeletion(schedAnchor, rc, settings, {
     evidenceType: full.type,
     caseNumber: full.caseNumber,
   });

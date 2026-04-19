@@ -53,6 +53,7 @@ export default function RetentionAdminPage() {
           {num("archivedDeleteAfterDays")}
           {num("longVideoDeleteAfterDays")}
           {num("videoWithoutCaseDeleteAfterDays")}
+          {num("videoWithoutCaseDeleteAfterHours")}
           {bool("notesCountAsModified")}
           {bool("tagsCountAsModified")}
           {bool("caseNumberCountsAsProtected")}

@@ -292,7 +292,8 @@ evidenceRouter.post("/:id/notes", requireAuth, async (req, res) => {
       },
       settings
     );
-    const sched = computeEvidenceScheduledDeletion(full.createdAt, rc, settings, {
+    const schedAnchor = full.uploadedAt ?? full.createdAt;
+    const sched = computeEvidenceScheduledDeletion(schedAnchor, rc, settings, {
       evidenceType: full.type,
       caseNumber: full.caseNumber,
     });
@@ -343,7 +344,8 @@ evidenceRouter.post("/:id/tags", requireAuth, async (req, res) => {
       },
       settings
     );
-    const sched = computeEvidenceScheduledDeletion(full.createdAt, rc, settings, {
+    const schedAnchor = full.uploadedAt ?? full.createdAt;
+    const sched = computeEvidenceScheduledDeletion(schedAnchor, rc, settings, {
       evidenceType: full.type,
       caseNumber: full.caseNumber,
     });
@@ -388,7 +390,8 @@ evidenceRouter.patch("/:id/case-number", requireMinRole("evidence_tech"), async 
     },
     settings
   );
-  const sched = computeEvidenceScheduledDeletion(updated.createdAt, rc, settings, {
+  const schedAnchor = updated.uploadedAt ?? updated.createdAt;
+  const sched = computeEvidenceScheduledDeletion(schedAnchor, rc, settings, {
     evidenceType: updated.type,
     caseNumber: updated.caseNumber,
   });
