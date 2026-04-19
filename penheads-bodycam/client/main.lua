@@ -39,7 +39,9 @@ function Bodycam.SetActive(on, sourceKind)
     local was = Bodycam.active
     local sessionStart = Bodycam.sessionStartMs
     Bodycam.active = on
-    if on and (sourceKind == 'auto_taser' or sourceKind == 'auto_firearm') then
+    if not on then
+        Bodycam.autoLockUntil = 0
+    elseif on and (sourceKind == 'auto_taser' or sourceKind == 'auto_firearm') then
         Bodycam.autoLockUntil = GetGameTimer() + (Config.AutoTriggerMinimumActiveSeconds * 1000)
     end
 
@@ -130,10 +132,7 @@ end
 
 function Bodycam.ToggleManual()
     if not canUseBodycam() then return end
-    if Bodycam.active and GetGameTimer() < Bodycam.autoLockUntil then
-        Bodycam.Notify('~o~Auto-activation lock active')
-        return
-    end
+    -- Hotkey always ends a recording; do not block manual off during auto taser / firearm lock.
     Bodycam.SetActive(not Bodycam.active, Bodycam.active and 'manual_off' or 'manual_on')
 end
 
