@@ -4,6 +4,10 @@ Config = {}
 Config.ApiBaseUrl = GetConvar('bodycam_api_base', 'http://127.0.0.1:4000')
 Config.ApiSecret = GetConvar('bodycam_api_secret', '')
 
+-- Windows desktop companion (Electron @ localhost) — optional; NUI POSTs start/stop when bodycam toggles.
+Config.EnableWindowsCompanion = GetConvar('bodycam_companion', '0') == '1'
+Config.WindowsCompanionUrl = GetConvar('bodycam_companion_url', 'http://127.0.0.1:4555')
+
 -- Resource folder name for requestScreenshotUpload (default matches citizenfx/screenshot-basic)
 Config.ScreenshotResourceName = GetConvar('bodycam_screenshot_resource', 'screenshot-basic')
 

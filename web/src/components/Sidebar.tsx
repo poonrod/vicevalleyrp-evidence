@@ -1,5 +1,6 @@
 "use client";
 
+import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -65,7 +66,10 @@ export function Sidebar() {
 
   return (
     <aside className="w-56 shrink-0 border-r border-zinc-800 min-h-screen p-4 flex flex-col gap-1 bg-zinc-950">
-      <div className="text-sm font-semibold text-zinc-400 mb-4 px-2">Navigation</div>
+      <div className="mb-4 px-1">
+        <BrandLogo href="/dashboard" className="h-11 w-auto max-w-[200px]" />
+      </div>
+      <div className="text-sm font-semibold text-zinc-400 mb-2 px-2">Navigation</div>
       {visible.map((l) => {
         const href = useAnchor ? portalHref(l.href) : l.href;
         const active = l.href === activeHref;

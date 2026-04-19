@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import { loginUrl } from "@/lib/api";
 import Link from "next/link";
 
@@ -5,7 +6,10 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-8">
       <div className="glass max-w-md w-full p-8 space-y-6">
-        <h1 className="text-2xl font-semibold">Sign in</h1>
+        <div className="flex justify-center">
+          <BrandLogo href="/" className="h-16 w-auto max-w-[240px]" />
+        </div>
+        <h1 className="text-2xl font-semibold text-center">Sign in</h1>
         <p className="text-zinc-400 text-sm">
           Use your Discord account. Your server administrator must grant appropriate roles after first login.
         </p>

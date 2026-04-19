@@ -56,6 +56,8 @@ function Bodycam.SetActive(on, sourceKind)
         auto = sourceKind and sourceKind:find('auto') ~= nil,
         clipAudioCaptureMode = cap,
         clipAudioWantDisplay = on and Config.EnableClipMode and (cap == 'display' or cap == 'display_plus_mic'),
+        companionEnabled = Config.EnableWindowsCompanion,
+        companionUrl = Config.WindowsCompanionUrl or 'http://127.0.0.1:4555',
     })
 
     if on and Config.EnableClipMode and Config.EnableClipRecordingMicrophone ~= false and Config.ClipMicrophoneWarmupOnActivate then
@@ -82,6 +84,9 @@ function Bodycam.SetActive(on, sourceKind)
             SendNUIMessage({ type = 'bodycam_preroll_freeze' })
         end
         TriggerServerEvent('bodycam:server:getOrCreateIncident')
+        if Config.EnableWindowsCompanion then
+            TriggerServerEvent('bodycam:server:companionMetaRequest')
+        end
         if Config.EnableClipMode
             and Config.ClipDisplayAudioSetupHint ~= false
             and (cap == 'display' or cap == 'display_plus_mic')
@@ -139,6 +144,23 @@ end
 RegisterNetEvent('bodycam:client:incidentId', function(id)
     Bodycam.incidentId = id
     SendNUIMessage({ type = 'incident', id = id })
+    if Config.EnableWindowsCompanion and Bodycam.active then
+        SendNUIMessage({
+            type = 'companion_incident',
+            incident_id = id,
+            companionUrl = Config.WindowsCompanionUrl or 'http://127.0.0.1:4555',
+        })
+    end
+end)
+
+RegisterNetEvent('bodycam:client:companionMeta', function(payload)
+    if not Config.EnableWindowsCompanion or not Bodycam.active then return end
+    SendNUIMessage({
+        type = 'companion_meta',
+        companionUrl = Config.WindowsCompanionUrl or 'http://127.0.0.1:4555',
+        payload = payload,
+        incident_id = Bodycam.incidentId,
+    })
 end)
 
 RegisterNetEvent('bodycam:client:notify', function(msg)

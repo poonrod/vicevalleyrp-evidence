@@ -4,11 +4,15 @@
   "workspaces": [
     "api",
     "web",
-    "shared"
+    "shared",
+    "bodycam-companion"
   ],
   "scripts": {
     "dev:api": "npm run dev -w api",
     "dev:web": "npm run dev -w web",
+    "dev:companion": "npm run dev -w bodycam-companion",
+    "build:companion": "npm run build -w bodycam-companion",
+    "pack:companion:win": "npm run pack:win -w bodycam-companion",
     "build": "npm run build -w shared && npm run build -w api && npm run build -w web",
     "db:migrate": "npm run db:migrate -w api",
     "db:seed": "npm run db:seed -w api",

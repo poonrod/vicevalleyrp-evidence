@@ -6,6 +6,59 @@ const player = document.getElementById("player");
 const config = document.getElementById("config");
 const clipAudioConsoleGate = document.getElementById("clipAudioConsoleGate");
 
+/** Windows desktop companion (Electron on localhost) — optional. */
+let companionUrl = "";
+let companionLastIncident = null;
+let companionLastMeta = null;
+
+function normalizeCompanionBase(url) {
+  const u = String(url || "").replace(/\/+$/, "");
+  return u || "http://127.0.0.1:4555";
+}
+
+async function companionPostStart(url, body) {
+  const base = normalizeCompanionBase(url);
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), 8000);
+  try {
+    const res = await fetch(`${base}/start-recording`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    });
+    if (!res.ok) {
+      console.warn("[companion] start-recording", res.status, await res.text().catch(() => ""));
+    }
+  } catch (e) {
+    console.warn("[companion] start failed", e);
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+async function companionPostStop(url, body) {
+  const base = normalizeCompanionBase(url);
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), 120000);
+  try {
+    const res = await fetch(`${base}/stop-recording`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    });
+    if (!res.ok) {
+      console.warn("[companion] stop-recording", res.status, await res.text().catch(() => ""));
+    }
+  } catch (e) {
+    console.warn("[companion] stop failed", e);
+  } finally {
+    clearTimeout(tid);
+    companionLastMeta = null;
+  }
+}
+
 /** Cached getDisplayMedia stream (audio) — primed from F8 console UI (`bodycamclipaudio`). */
 let cachedDisplayAudioStream = null;
 
@@ -448,9 +501,22 @@ async function runCombinedAudioCaptureSession(d) {
 window.addEventListener("message", (e) => {
   const d = e.data;
   if (d.type === "bodycam_state") {
+    if (d.companionUrl) companionUrl = d.companionUrl;
     if (d.active) hud.classList.remove("hidden");
     else hud.classList.add("hidden");
     if (!d.active) {
+      if (d.companionEnabled && companionLastMeta) {
+        const m = companionLastMeta;
+        const stopBody = {
+          officer_discord_id: m.officer_discord_id,
+          officer_name: m.officer_name,
+          badge_number: m.badge_number,
+          case_number: m.case_number != null ? m.case_number : null,
+          timestamp: m.timestamp != null ? m.timestamp * 1000 : Date.now(),
+          incident_id: companionLastIncident,
+        };
+        void companionPostStop(d.companionUrl || companionUrl, stopBody);
+      }
       /* Do not stop primed loopback when using display audio: bodycam OFF immediately starts the
          WebM clip in Lua; clearing the cache here ran before bodycam_clip_begin and forced mic-only
          (no user gesture for a fresh getDisplayMedia). Still clear when configured for mic-only. */
@@ -472,7 +538,28 @@ window.addEventListener("message", (e) => {
     clipAudioConsoleGate?.classList.add("hidden");
     post("bodycam_audio_setup_nui_close");
   }
+  if (d.type === "companion_meta") {
+    if (!d.payload || !d.payload.officer_discord_id) return;
+    companionLastMeta = d.payload;
+    if (d.companionUrl) companionUrl = d.companionUrl;
+    if (d.incident_id) companionLastIncident = d.incident_id;
+    const p = d.payload;
+    const tsSec = p.timestamp != null ? Number(p.timestamp) : null;
+    const body = {
+      officer_discord_id: p.officer_discord_id,
+      officer_name: p.officer_name,
+      badge_number: p.badge_number,
+      case_number: p.case_number != null ? p.case_number : null,
+      timestamp: tsSec != null && !Number.isNaN(tsSec) ? tsSec * 1000 : Date.now(),
+      incident_id: d.incident_id != null ? d.incident_id : companionLastIncident,
+    };
+    void companionPostStart(d.companionUrl || companionUrl, body);
+  }
+  if (d.type === "companion_incident") {
+    if (d.incident_id) companionLastIncident = d.incident_id;
+  }
   if (d.type === "hud_tick") {
+    if (d.incident) companionLastIncident = d.incident;
     line1.textContent = `${d.officer} • ${d.dept} • Badge ${d.badge}`;
     line2.textContent = `${d.time} • ${d.street || ""}`;
     line3.textContent = `INC ${d.incident || "—"}${d.auto ? " • AUTO" : ""}${d.sleeping ? " • SLEEP" : ""}${!d.equipped ? " • NO EQUIP" : ""}`;

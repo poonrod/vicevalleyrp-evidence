@@ -1,0 +1,5 @@
+dist/
+release/
+build-assets/icon.ico
+node_modules/
+*.log

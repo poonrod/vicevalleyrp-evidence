@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bodycam Audio Capture Notice</title>
+    <style>
+      body {
+        font-family: Segoe UI, system-ui, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #1a1d23;
+        color: #e8eaed;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 12px;
+      }
+      p {
+        line-height: 1.45;
+        font-size: 13px;
+        color: #bdc1c8;
+        margin: 0 0 20px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+      }
+      button {
+        padding: 8px 18px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .accept {
+        background: #2b6cb0;
+        color: #fff;
+      }
+      .decline {
+        background: #3d424d;
+        color: #e8eaed;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Bodycam Audio Capture Notice</h1>
+    <p>
+      This application captures system audio (game + voice) and microphone input while bodycam is active. Audio is only
+      recorded when the in-game bodycam is enabled. All recordings sync with bodycam footage and upload securely to the
+      Evidence System.
+    </p>
+    <div class="row">
+      <button class="decline" id="decline">Decline</button>
+      <button class="accept" id="accept">Accept</button>
+    </div>
+    <script>
+      document.getElementById("accept").onclick = () => window.companion.accept();
+      document.getElementById("decline").onclick = () => window.companion.decline();
+    </script>
+  </body>
+</html>

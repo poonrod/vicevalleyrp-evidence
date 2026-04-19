@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bodycam Companion — Logs</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Consolas, monospace;
+        font-size: 12px;
+        background: #0d1117;
+        color: #c9d1d9;
+      }
+      pre {
+        margin: 0;
+        padding: 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <pre id="out">Loading…</pre>
+    <script>
+      window.companion.onLog((text) => {
+        document.getElementById("out").textContent = text;
+      });
+    </script>
+  </body>
+</html>

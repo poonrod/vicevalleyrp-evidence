@@ -6,6 +6,10 @@ import { HostGuard } from "@/components/HostGuard";
 export const metadata: Metadata = {
   title: "Vice Valley Evidence",
   description: "Law enforcement evidence portal",
+  icons: {
+    icon: "/vice-valley-logo.png",
+    apple: "/vice-valley-logo.png",
+  },
 };
 
 /**

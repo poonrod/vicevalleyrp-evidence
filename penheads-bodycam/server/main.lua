@@ -108,6 +108,24 @@ RegisterNetEvent('bodycam:server:completeUpload', function(payload)
     end)
 end)
 
+RegisterNetEvent('bodycam:server:companionMetaRequest', function()
+    local src = source
+    if not Permissions.IsLawEnforcement(src) then return end
+    local discordId = Framework.GetDiscordId(src)
+    if not discordId then return end
+    local name = Framework.GetCharacterName(src)
+    local badge, dept, cs = Framework.GetBadgeDepartmentCallsign(src)
+    TriggerClientEvent('bodycam:client:companionMeta', src, {
+        officer_discord_id = discordId,
+        officer_name = name,
+        badge_number = badge and tostring(badge) or nil,
+        officer_department = dept,
+        officer_callsign = cs,
+        case_number = nil,
+        timestamp = os.time(),
+    })
+end)
+
 RegisterNetEvent('bodycam:server:getOrCreateIncident', function()
     local src = source
     if not Permissions.IsLawEnforcement(src) then return end
