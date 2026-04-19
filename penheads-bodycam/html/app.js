@@ -10,6 +10,23 @@ const clipAudioConsoleGate = document.getElementById("clipAudioConsoleGate");
 let companionUrl = "";
 let companionLastIncident = null;
 let companionLastMeta = null;
+/** From Lua when `bodycam_companion_mux_clip` + companion enabled — NUI video + exe audio → one MP4. */
+let companionMuxClipMode = false;
+/** When true, defer `companionPostStop` until after WebM is POSTed to the companion. */
+let companionStopDeferred = false;
+
+function buildCompanionStopBody(tsMs = Date.now()) {
+  if (!companionLastMeta) return null;
+  const m = companionLastMeta;
+  return {
+    officer_discord_id: m.officer_discord_id,
+    officer_name: m.officer_name,
+    badge_number: m.badge_number,
+    case_number: m.case_number != null ? m.case_number : null,
+    timestamp: tsMs,
+    incident_id: companionLastIncident,
+  };
+}
 
 function normalizeCompanionBase(url) {
   const u = String(url || "").replace(/\/+$/, "");
@@ -37,6 +54,7 @@ async function companionPostStart(url, body) {
   }
 }
 
+/** @returns {{ ok: true } | { ok: false; error: string }} */
 async function companionPostStop(url, body) {
   const base = normalizeCompanionBase(url);
   const ac = new AbortController();
@@ -48,15 +66,42 @@ async function companionPostStop(url, body) {
       body: JSON.stringify(body),
       signal: ac.signal,
     });
-    if (!res.ok) {
-      console.warn("[companion] stop-recording", res.status, await res.text().catch(() => ""));
+    const text = await res.text().catch(() => "");
+    let parsed = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      /* ignore */
     }
+    if (!res.ok) {
+      const apiErr = parsed && typeof parsed.error === "string" ? parsed.error : "";
+      const err = apiErr || text || res.statusText || `HTTP_${res.status}`;
+      console.warn("[companion] stop-recording", res.status, err);
+      return { ok: false, error: err };
+    }
+    if (parsed && parsed.ok === false) {
+      const err = typeof parsed.error === "string" ? parsed.error : "stop_failed";
+      return { ok: false, error: err };
+    }
+    return { ok: true };
   } catch (e) {
+    const err = String((e && e.name === "AbortError") ? "companion_stop_timeout" : e);
     console.warn("[companion] stop failed", e);
+    return { ok: false, error: err };
   } finally {
     clearTimeout(tid);
     companionLastMeta = null;
   }
+}
+
+/** If bodycam turned off while mux mode, companion stop was deferred until clip finished — flush it here. */
+function flushCompanionStopDeferred(tsMs = Date.now()) {
+  if (!companionStopDeferred || !companionLastMeta) return;
+  const body = buildCompanionStopBody(tsMs);
+  companionStopDeferred = false;
+  if (body) void companionPostStop(companionUrl, body).then((r) => {
+    if (!r.ok) console.warn("[companion] deferred stop failed", r.error);
+  });
 }
 
 /** Cached getDisplayMedia stream (audio) — primed from F8 console UI (`bodycamclipaudio`). */
@@ -502,20 +547,17 @@ window.addEventListener("message", (e) => {
   const d = e.data;
   if (d.type === "bodycam_state") {
     if (d.companionUrl) companionUrl = d.companionUrl;
+    companionMuxClipMode = !!d.companionMuxClipMode;
     if (d.active) hud.classList.remove("hidden");
     else hud.classList.add("hidden");
     if (!d.active) {
       if (d.companionEnabled && companionLastMeta) {
-        const m = companionLastMeta;
-        const stopBody = {
-          officer_discord_id: m.officer_discord_id,
-          officer_name: m.officer_name,
-          badge_number: m.badge_number,
-          case_number: m.case_number != null ? m.case_number : null,
-          timestamp: m.timestamp != null ? m.timestamp * 1000 : Date.now(),
-          incident_id: companionLastIncident,
-        };
-        void companionPostStop(d.companionUrl || companionUrl, stopBody);
+        if (companionMuxClipMode) {
+          companionStopDeferred = true;
+        } else {
+          const stopBody = buildCompanionStopBody();
+          if (stopBody) void companionPostStop(d.companionUrl || companionUrl, stopBody);
+        }
       }
       /* Do not stop primed loopback when using display audio: bodycam OFF immediately starts the
          WebM clip in Lua; clearing the cache here ran before bodycam_clip_begin and forced mic-only
@@ -810,6 +852,9 @@ function abortClipSession(correlation, errMsg) {
       /* ignore */
     }
   }
+  if (s?.companionMux) {
+    flushCompanionStopDeferred();
+  }
   if (correlation != null && correlation !== "") {
     post("bodycam_clip_put_done", { correlation: String(correlation), ok: false, err: errMsg || "aborted" });
   }
@@ -852,6 +897,7 @@ async function drawPreRollStrip(dataUrl, repeats, fps, correlation) {
 
 async function startClipSession(d) {
   abortClipSession(null);
+  const companionMuxVideoOnly = !!d.companionMuxVideoOnly;
   if (combinedAudioRunning) {
     post("bodycam_clip_put_done", { correlation: d.correlation, ok: false, err: "combined_audio_active" });
     return;
@@ -870,6 +916,7 @@ async function startClipSession(d) {
   const fps = Math.max(1, Math.min(60, Number(d.fps) || 30));
   const audioMode = normalizeClipAudioMode(d.clipAudioCaptureMode);
   const wantMic =
+    !companionMuxVideoOnly &&
     !!d.includeMic &&
     typeof navigator !== "undefined" &&
     navigator.mediaDevices?.getUserMedia &&
@@ -896,7 +943,7 @@ async function startClipSession(d) {
   let mergeAudioContext = null;
   let audioTracksForRecorder = [];
 
-  if (audioMode === "display" || audioMode === "display_plus_mic") {
+  if (!companionMuxVideoOnly && (audioMode === "display" || audioMode === "display_plus_mic")) {
     const got = await obtainDisplayStreamForClip();
     displayStream = got.stream;
     displayEphemeral = !!got.ephemeral;
@@ -936,6 +983,10 @@ async function startClipSession(d) {
     audioTracksForRecorder = [...displayStream.getAudioTracks()];
   } else if (micStream) {
     audioTracksForRecorder = [...micStream.getAudioTracks()];
+  }
+
+  if (companionMuxVideoOnly) {
+    audioTracksForRecorder = [];
   }
 
   const hasAudio = audioTracksForRecorder.length > 0;
@@ -1013,6 +1064,7 @@ async function startClipSession(d) {
     minUploadSeconds: Math.max(1, Math.min(120, Number(d.minUploadSeconds) || 5)),
     clipMaxWidth: initW,
     clipMaxHeight: initH,
+    companionMux: companionMuxVideoOnly,
   };
 
   try {
@@ -1095,6 +1147,9 @@ async function finalizeClipSession() {
       /* ignore */
     }
     stopClipMic(s);
+    if (s.companionMux) {
+      flushCompanionStopDeferred();
+    }
     post("bodycam_clip_put_done", {
       correlation: s.correlation,
       ok: false,
@@ -1129,6 +1184,9 @@ async function finalizeClipSession() {
     });
   } catch (err) {
     stopClipMic(s);
+    if (s.companionMux) {
+      flushCompanionStopDeferred();
+    }
     post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: String(err) });
     return;
   }
@@ -1138,10 +1196,57 @@ async function finalizeClipSession() {
   const baseMime = (s.mime || "video/webm").split(";")[0] || "video/webm";
   const blob = new Blob(s.chunks, { type: baseMime });
   if (!blob.size) {
+    if (s.companionMux) {
+      flushCompanionStopDeferred();
+    }
     post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: "empty WebM blob" });
     return;
   }
   try {
+    if (s.companionMux) {
+      const base = normalizeCompanionBase(companionUrl);
+      const ac = new AbortController();
+      const vidTid = setTimeout(() => ac.abort(), 180000);
+      try {
+        const up = await fetch(`${base}/companion-nui-video`, {
+          method: "POST",
+          headers: { "Content-Type": baseMime },
+          body: blob,
+          signal: ac.signal,
+        });
+        if (!up.ok) {
+          const t = await up.text();
+          throw new Error(t || up.statusText || `HTTP_${up.status}`);
+        }
+      } finally {
+        clearTimeout(vidTid);
+      }
+      const stopBody =
+        buildCompanionStopBody(s.startMs) || { timestamp: Date.now() };
+      try {
+        const stopRes = await companionPostStop(companionUrl, stopBody);
+        if (!stopRes.ok) {
+          post("bodycam_clip_put_done", {
+            correlation: s.correlation,
+            ok: false,
+            err: stopRes.error || "companion_stop_failed",
+            durationSeconds: finalSeconds,
+          });
+          return;
+        }
+      } finally {
+        companionStopDeferred = false;
+      }
+      post("bodycam_clip_put_done", {
+        correlation: s.correlation,
+        ok: true,
+        companionMuxHandled: true,
+        fileSize: blob.size,
+        durationSeconds: finalSeconds,
+      });
+      return;
+    }
+
     const res = await fetch(s.url, {
       method: "PUT",
       headers: { "Content-Type": "video/webm" },
@@ -1161,6 +1266,9 @@ async function finalizeClipSession() {
     }
     post("bodycam_clip_put_done", { correlation: s.correlation, ok: true, fileSize: blob.size, durationSeconds: finalSeconds });
   } catch (err) {
+    if (s.companionMux) {
+      flushCompanionStopDeferred();
+    }
     post("bodycam_clip_put_done", { correlation: s.correlation, ok: false, err: String(err), durationSeconds: finalSeconds });
   }
 }

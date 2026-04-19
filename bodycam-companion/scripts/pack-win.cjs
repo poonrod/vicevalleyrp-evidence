@@ -38,7 +38,8 @@ function shouldIgnore(p) {
     rel.startsWith("scripts/") ||
     rel.startsWith("tools/") ||
     rel.startsWith("release/") ||
-    rel.startsWith("build-assets/") ||
+    // Bundle app-icon.png for the tray; keep generated ICO/Uninstall.exe out of the app folder.
+    (rel.startsWith("build-assets/") && rel !== "build-assets/app-icon.png") ||
     rel.startsWith("client-extras/") ||
     rel === "tsconfig.json" ||
     rel === ".gitignore" ||

@@ -13,6 +13,7 @@ import {
   sha256File,
 } from "./evidenceClient";
 import { enqueuePending } from "./uploadQueue";
+import { muxNuiWebmWithCompanionAudio } from "./muxNuiWebm";
 
 export interface ActiveSession {
   id: string;
@@ -21,6 +22,8 @@ export interface ActiveSession {
   timestampUtc: string;
   outputPath: string;
   recorder: FfmpegRecorder;
+  /** Optional WebM from FiveM NUI (video-only) to mux with `outputPath` audio before upload. */
+  nuiWebmPath?: string;
 }
 
 function toIsoUtc(ms: number): string {
@@ -60,7 +63,41 @@ export class RecordingSessionManager {
     return this.session;
   }
 
-  start(payload: StartRecordingPayload, enableVideo: boolean): ActiveSession {
+  /**
+   * Attach WebM video from FiveM NUI while the companion audio session is still recording.
+   * Call before `POST /stop-recording`.
+   */
+  attachNuiWebmVideo(buf: Buffer): { ok: true } | { ok: false; error: string } {
+    const s = this.session;
+    if (!s) {
+      return { ok: false, error: "no_active_session" };
+    }
+    if (!buf?.length) {
+      return { ok: false, error: "empty_body" };
+    }
+    const max = 450 * 1024 * 1024;
+    if (buf.length > max) {
+      return { ok: false, error: "video_too_large" };
+    }
+    const webmPath = path.join(tempRecordingsDir(), `${s.id}-nui.webm`);
+    try {
+      fs.writeFileSync(webmPath, buf);
+      s.nuiWebmPath = webmPath;
+      logLine("info", "Attached NUI WebM for mux", { bytes: buf.length });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String((e as Error)?.message || e) };
+    }
+  }
+
+  start(
+    payload: StartRecordingPayload,
+    opts: {
+      enableVideo: boolean;
+      wasapiOutputDevice: string;
+      wasapiInputDevice: string;
+    }
+  ): ActiveSession {
     if (this.session) {
       throw new Error("already_recording");
     }
@@ -75,7 +112,9 @@ export class RecordingSessionManager {
     const recorder = this.recorderFactory();
     recorder.start({
       outputPath,
-      enableVideo,
+      enableVideo: opts.enableVideo,
+      wasapiOutputDevice: opts.wasapiOutputDevice,
+      wasapiInputDevice: opts.wasapiInputDevice,
     });
 
     this.session = {
@@ -125,6 +164,35 @@ export class RecordingSessionManager {
         return { ok: false, error: "output_too_small" };
       }
 
+      const ffmpegBin = defaultFfmpegExecutable();
+      let uploadPath = s.outputPath;
+      const cleanupPaths: string[] = [];
+
+      if (s.nuiWebmPath && fs.existsSync(s.nuiWebmPath)) {
+        const mergedPath = path.join(tempRecordingsDir(), `${s.id}-merged.mp4`);
+        try {
+          await muxNuiWebmWithCompanionAudio(ffmpegBin, s.nuiWebmPath, s.outputPath, mergedPath);
+          cleanupPaths.push(s.nuiWebmPath, s.outputPath);
+          uploadPath = mergedPath;
+        } catch (e) {
+          const msg = String((e as Error)?.message || e);
+          logLine("error", "WebM + companion audio mux failed", { err: msg });
+          for (const p of [s.nuiWebmPath, mergedPath]) {
+            try {
+              if (p && fs.existsSync(p)) fs.unlinkSync(p);
+            } catch {
+              /* ignore */
+            }
+          }
+          return { ok: false, error: `mux_failed:${msg}` };
+        }
+      }
+
+      const upStat = fs.statSync(uploadPath);
+      if (upStat.size < 64) {
+        return { ok: false, error: "output_too_small" };
+      }
+
       const durationSeconds = Math.max(0, (Date.now() - s.startedAtMs) / 1000);
       const mimeType = "video/mp4";
       const captureType = "bodycam_companion_capture";
@@ -133,9 +201,9 @@ export class RecordingSessionManager {
         officerDiscordId: s.payload.officerDiscordId,
         officerName: s.payload.officerName,
         officerBadgeNumber: s.payload.officerBadgeNumber,
-        fileName: path.basename(s.outputPath),
+        fileName: path.basename(uploadPath),
         mimeType,
-        fileSize: st.size,
+        fileSize: upStat.size,
         captureType,
         caseNumber: s.payload.caseNumber ?? null,
         incidentId: s.payload.incidentId ?? undefined,
@@ -149,9 +217,9 @@ export class RecordingSessionManager {
         incidentId: s.payload.incidentId ?? undefined,
         type: "video" as const,
         captureType,
-        fileName: path.basename(s.outputPath),
+        fileName: path.basename(uploadPath),
         mimeType,
-        fileSize: st.size,
+        fileSize: upStat.size,
         timestampUtc: s.timestampUtc,
         durationSeconds,
       };
@@ -160,7 +228,7 @@ export class RecordingSessionManager {
         const err = "missing_api_config";
         logLine("error", err);
         enqueuePending({
-          filePath: s.outputPath,
+          filePath: uploadPath,
           uploadUrlPayload,
           completePayload: {
             ...completeBase,
@@ -174,8 +242,8 @@ export class RecordingSessionManager {
 
       try {
         const presign = await requestUploadUrl(cfg.apiBase, cfg.apiToken, uploadUrlPayload);
-        await putFileToPresignedUrl(presign.url, s.outputPath, mimeType);
-        const sha = await sha256File(s.outputPath);
+        await putFileToPresignedUrl(presign.url, uploadPath, mimeType);
+        const sha = await sha256File(uploadPath);
         await completeEvidence(cfg.apiBase, cfg.apiToken, {
           ...completeBase,
           storageKey: presign.storageKey,
@@ -183,7 +251,18 @@ export class RecordingSessionManager {
           sha256: sha,
           activationSource: "manual_keybind",
         });
-        fs.unlinkSync(s.outputPath);
+        try {
+          fs.unlinkSync(uploadPath);
+        } catch {
+          /* ignore */
+        }
+        for (const p of cleanupPaths) {
+          try {
+            if (p && fs.existsSync(p)) fs.unlinkSync(p);
+          } catch {
+            /* ignore */
+          }
+        }
         logLine("info", "Recording uploaded", { sessionId: s.id });
         return { ok: true };
       } catch (e) {
@@ -191,13 +270,13 @@ export class RecordingSessionManager {
         logLine("error", "Upload pipeline failed, enqueueing", { err: msg });
         let sha: string | undefined;
         try {
-          sha = await sha256File(s.outputPath);
+          sha = await sha256File(uploadPath);
         } catch {
           /* optional hash */
         }
         enqueuePending({
-          filePath: s.outputPath,
-          uploadUrlPayload: { ...uploadUrlPayload, fileSize: st.size },
+          filePath: uploadPath,
+          uploadUrlPayload: { ...uploadUrlPayload, fileSize: upStat.size },
           completePayload: {
             ...completeBase,
             storageKey: "",

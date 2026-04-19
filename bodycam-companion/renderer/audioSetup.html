@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bodycam Companion — Audio setup</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: 13px;
+        background: #0d1117;
+        color: #e6edf3;
+        line-height: 1.45;
+      }
+      .wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 20px 22px 22px;
+      }
+      h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 6px;
+        letter-spacing: 0.02em;
+      }
+      .sub {
+        color: #8b949e;
+        font-size: 12px;
+        margin-bottom: 18px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin: 14px 0 6px;
+        color: #c9d1d9;
+      }
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid #30363d;
+        background: #161b22;
+        color: #e6edf3;
+        font-size: 13px;
+      }
+      .hint {
+        font-size: 11px;
+        color: #8b949e;
+        margin-top: 6px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+      }
+      button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: 1px solid #30363d;
+        background: #21262d;
+        color: #e6edf3;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #238636;
+        border-color: #2ea043;
+      }
+      button:hover {
+        filter: brightness(1.08);
+      }
+      #msg {
+        margin-top: 12px;
+        font-size: 12px;
+        min-height: 1.2em;
+        color: #f85149;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Welcome — choose your audio devices</h1>
+      <p class="sub">
+        Bodycam Companion records <strong>desktop / game audio</strong> (loopback) and your <strong>microphone</strong>.
+        You can change these later in <strong>Main menu</strong> from the tray.
+      </p>
+
+      <label for="out">Primary output (desktop / game audio)</label>
+      <select id="out"></select>
+      <p class="hint">Usually your headset or speakers — this is what you hear in Windows.</p>
+
+      <label for="in">Primary input (microphone)</label>
+      <select id="in"></select>
+
+      <div class="actions">
+        <button type="button" class="primary" id="continue">Continue</button>
+        <button type="button" id="skip">Use Windows defaults</button>
+      </div>
+      <p id="msg"></p>
+    </div>
+    <script>
+      const outSel = document.getElementById("out");
+      const inSel = document.getElementById("in");
+      const msg = document.getElementById("msg");
+
+      function fillSelect(sel, options, selectedId) {
+        sel.innerHTML = "";
+        for (const o of options) {
+          const opt = document.createElement("option");
+          opt.value = o.id;
+          opt.textContent = o.label;
+          if (o.id === selectedId) opt.selected = true;
+          sel.appendChild(opt);
+        }
+      }
+
+      async function init() {
+        try {
+          const data = await window.audioSetupApi.load();
+          fillSelect(outSel, data.outputs, data.wasapiOutputDevice);
+          fillSelect(inSel, data.inputs, data.wasapiInputDevice);
+        } catch (e) {
+          msg.textContent = String(e);
+        }
+      }
+
+      document.getElementById("continue").addEventListener("click", async () => {
+        msg.textContent = "";
+        try {
+          await window.audioSetupApi.complete({
+            wasapiOutputDevice: outSel.value,
+            wasapiInputDevice: inSel.value,
+          });
+        } catch (e) {
+          msg.textContent = String(e);
+        }
+      });
+
+      document.getElementById("skip").addEventListener("click", async () => {
+        msg.textContent = "";
+        try {
+          await window.audioSetupApi.skip();
+        } catch (e) {
+          msg.textContent = String(e);
+        }
+      });
+
+      void init();
+    </script>
+  </body>
+</html>

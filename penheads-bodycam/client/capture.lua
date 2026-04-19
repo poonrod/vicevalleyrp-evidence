@@ -64,6 +64,11 @@ local function completeAfterClipPut(cid, body)
         return
     end
 
+    if body.companionMuxHandled == true then
+        Bodycam.Notify('~g~Evidence saved')
+        return
+    end
+
     local d = pending.data
     local coords = pending.coords
     local heading = pending.heading
@@ -362,6 +367,7 @@ local function startWebmClipFromPresign(data)
 
     pendingPresigned[cid] = {
         clipMode = true,
+        companionMuxMode = data.companionMuxLocalClip == true,
         data = data,
         coords = coords,
         heading = heading,
@@ -389,13 +395,19 @@ local function startWebmClipFromPresign(data)
         capMode = 'mic'
     end
 
+    local companionMuxLocalClip = data.companionMuxLocalClip == true
+    if companionMuxLocalClip then
+        includeMic = false
+    end
+
     SendNUIMessage({
         type = 'bodycam_clip_begin',
         correlation = cid,
-        url = data.url,
+        url = data.url or '',
         fps = fps,
         maxFrames = maxFrames,
         includeMic = includeMic,
+        companionMuxVideoOnly = companionMuxLocalClip,
         watermarkTime = wmTime,
         watermarkLine2 = wmLine2,
         minUploadSeconds = tonumber(Config.ClipMinUploadSeconds) or 5,
@@ -438,6 +450,24 @@ function CaptureClient.TryFinalizeWebmClip(sessionDurMs)
     pre = math.max(0, math.floor(pre))
     local maxPolicy = Config.ShortClipMaxSeconds or 30
     local capSec = pre + math.min(maxPolicy, liveSec)
+    local clipFps = tonumber(Config.ShortClipRecordFps) or tonumber(Config.ClipRecordFps) or 30
+
+    if Config.EnableWindowsCompanion and Config.CompanionMuxClipWithExeAudio then
+        local shotRes = Config.ScreenshotResourceName or 'screenshot-basic'
+        if GetResourceState(shotRes) ~= 'started' then
+            Bodycam.Notify('~r~' .. shotRes .. ' not started')
+            return
+        end
+        startWebmClipFromPresign({
+            companionMuxLocalClip = true,
+            url = '',
+            clipFps = clipFps,
+            clipSeconds = capSec,
+            meta = {},
+        })
+        return
+    end
+
     TriggerServerEvent('bodycam:server:requestUpload', {
         fileName = 'bodycam_clip.webm',
         mimeType = 'video/webm',
@@ -445,7 +475,7 @@ function CaptureClient.TryFinalizeWebmClip(sessionDurMs)
         captureType = 'bodycam_clip_stop',
         videoTier = 'short',
         clipMaxSeconds = capSec,
-        clipRecordFps = tonumber(Config.ShortClipRecordFps) or tonumber(Config.ClipRecordFps) or 30,
+        clipRecordFps = clipFps,
     })
 end
 

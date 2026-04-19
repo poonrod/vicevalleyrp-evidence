@@ -12,6 +12,9 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
+  app.on("second-instance", () => {
+    trayCtl?.onSecondInstance();
+  });
   void main();
 }
 
@@ -97,6 +100,7 @@ async function main(): Promise<void> {
     (c) => {
       config = c;
     },
+    (c) => saveConfig(c, safeStorage.isEncryptionAvailable() ? safeStorage : undefined),
     () => {
       logLine("info", "Exit requested from tray");
       stopQueueWorker?.();
@@ -105,6 +109,11 @@ async function main(): Promise<void> {
       app.quit();
     }
   );
+
+  if (!config.audioSetupCompleted) {
+    await trayCtl.showAudioSetupModal();
+    refreshConfig();
+  }
 
   httpServer = createLocalHttpServer(
     {

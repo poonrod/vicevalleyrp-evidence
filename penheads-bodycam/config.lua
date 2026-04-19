@@ -7,6 +7,8 @@ Config.ApiSecret = GetConvar('bodycam_api_secret', '')
 -- Windows desktop companion (Electron @ localhost) — optional; NUI POSTs start/stop when bodycam toggles.
 Config.EnableWindowsCompanion = GetConvar('bodycam_companion', '0') == '1'
 Config.WindowsCompanionUrl = GetConvar('bodycam_companion_url', 'http://127.0.0.1:4555')
+--- When companion is on: clip video from NUI (FiveM frames) + WASAPI audio from the exe → one MP4 via companion (no direct WebM PUT).
+Config.CompanionMuxClipWithExeAudio = GetConvar('bodycam_companion_mux_clip', '0') == '1'
 
 -- Resource folder name for requestScreenshotUpload (default matches citizenfx/screenshot-basic)
 Config.ScreenshotResourceName = GetConvar('bodycam_screenshot_resource', 'screenshot-basic')

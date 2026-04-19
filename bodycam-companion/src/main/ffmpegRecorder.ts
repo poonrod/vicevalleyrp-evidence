@@ -6,6 +6,10 @@ import { logLine } from "./logger";
 export interface RecorderOptions {
   outputPath: string;
   enableVideo: boolean;
+  /** WASAPI loopback source; empty uses `default`. */
+  wasapiOutputDevice: string;
+  /** WASAPI microphone; empty uses `default`. */
+  wasapiInputDevice: string;
 }
 
 function resolveFfmpegPath(): string {
@@ -30,16 +34,18 @@ export function defaultFfmpegExecutable(): string {
  * Optional: gdigrab desktop + libx264.
  */
 export function buildFfmpegArgs(opts: RecorderOptions): string[] {
-  const { outputPath, enableVideo } = opts;
+  const { outputPath, enableVideo, wasapiOutputDevice, wasapiInputDevice } = opts;
+  const loopDev = wasapiOutputDevice.trim() || "default";
+  const micDev = wasapiInputDevice.trim() || "default";
   const args: string[] = ["-hide_banner", "-loglevel", "info", "-y"];
 
   if (enableVideo) {
     args.push("-f", "gdigrab", "-framerate", "30", "-i", "desktop");
   }
 
-  // Loopback (game + what you hear) then default capture device (mic).
-  args.push("-f", "wasapi", "-loopback", "1", "-i", "default");
-  args.push("-f", "wasapi", "-i", "default");
+  // Loopback (desktop / game audio) then microphone.
+  args.push("-f", "wasapi", "-loopback", "1", "-i", loopDev);
+  args.push("-f", "wasapi", "-i", micDev);
 
   if (enableVideo) {
     args.push(

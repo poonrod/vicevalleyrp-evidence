@@ -58,6 +58,7 @@ function Bodycam.SetActive(on, sourceKind)
         clipAudioWantDisplay = on and Config.EnableClipMode and (cap == 'display' or cap == 'display_plus_mic'),
         companionEnabled = Config.EnableWindowsCompanion,
         companionUrl = Config.WindowsCompanionUrl or 'http://127.0.0.1:4555',
+        companionMuxClipMode = Config.EnableWindowsCompanion and Config.CompanionMuxClipWithExeAudio == true,
     })
 
     if on and Config.EnableClipMode and Config.EnableClipRecordingMicrophone ~= false and Config.ClipMicrophoneWarmupOnActivate then
@@ -154,7 +155,9 @@ RegisterNetEvent('bodycam:client:incidentId', function(id)
 end)
 
 RegisterNetEvent('bodycam:client:companionMeta', function(payload)
-    if not Config.EnableWindowsCompanion or not Bodycam.active then return end
+    -- Forward even if bodycam just turned off: NUI may still be finishing a mux clip and needs
+    -- `companionLastMeta` for `/stop-recording` after a fast on→off toggle before this RPC returned.
+    if not Config.EnableWindowsCompanion then return end
     SendNUIMessage({
         type = 'companion_meta',
         companionUrl = Config.WindowsCompanionUrl or 'http://127.0.0.1:4555',

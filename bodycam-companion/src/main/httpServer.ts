@@ -33,6 +33,20 @@ async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
   }
 }
 
+async function readBinaryBody(req: http.IncomingMessage, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const ch of req) {
+    const b = ch as Buffer;
+    total += b.length;
+    if (total > maxBytes) {
+      throw new Error("body_too_large");
+    }
+    chunks.push(b);
+  }
+  return Buffer.concat(chunks, total);
+}
+
 export interface HttpServerContext {
   getConfig: () => AppConfig;
   sessionManager: RecordingSessionManager;
@@ -105,12 +119,60 @@ export function createLocalHttpServer(
           json(res, 400, { error: "invalid_body", details: parsed.error.flatten() });
           return;
         }
-        const session = ctx.sessionManager.start(parsed.data, cfg.enableVideo);
+        const session = ctx.sessionManager.start(parsed.data, {
+          enableVideo: cfg.enableVideo,
+          wasapiOutputDevice: cfg.wasapiOutputDevice,
+          wasapiInputDevice: cfg.wasapiInputDevice,
+        });
         json(res, 200, {
           ok: true,
           sessionId: session.id,
           startedAt: session.startedAtMs,
         });
+        return;
+      }
+
+      if (pathname === "/companion-nui-video") {
+        if (!ctx.sessionManager.isRecording()) {
+          json(res, 400, { error: "not_recording" });
+          return;
+        }
+        const ct = (req.headers["content-type"] || "").toLowerCase();
+        if (!ct.startsWith("video/")) {
+          json(res, 415, { error: "expected_video_content_type" });
+          return;
+        }
+        const max = 450 * 1024 * 1024;
+        let buf: Buffer;
+        try {
+          buf = await readBinaryBody(req, max);
+        } catch (e) {
+          const msg = String((e as Error)?.message || e);
+          if (msg === "body_too_large") {
+            json(res, 413, { error: "body_too_large" });
+            return;
+          }
+          throw e;
+        }
+        if (!buf.length) {
+          json(res, 400, { error: "empty_body" });
+          return;
+        }
+        const declared = parseInt(req.headers["content-length"] || "", 10);
+        if (
+          Number.isFinite(declared) &&
+          declared > 0 &&
+          declared !== buf.length
+        ) {
+          json(res, 400, { error: "length_mismatch" });
+          return;
+        }
+        const attached = ctx.sessionManager.attachNuiWebmVideo(buf);
+        if (attached.ok) {
+          json(res, 200, { ok: true });
+        } else {
+          json(res, 400, { ok: false, error: attached.error });
+        }
         return;
       }
 

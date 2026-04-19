@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bodycam Companion — Main menu</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: 13px;
+        background: #0d1117;
+        color: #e6edf3;
+        line-height: 1.45;
+      }
+      .wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 20px 22px 24px;
+      }
+      h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 4px;
+        letter-spacing: 0.02em;
+      }
+      .sub {
+        color: #8b949e;
+        font-size: 12px;
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin: 14px 0 6px;
+        color: #c9d1d9;
+      }
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid #30363d;
+        background: #161b22;
+        color: #e6edf3;
+        font-size: 13px;
+      }
+      .row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .row input {
+        margin-top: 3px;
+      }
+      .hint {
+        font-size: 11px;
+        color: #8b949e;
+        margin-top: 6px;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 22px;
+      }
+      button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: 1px solid #30363d;
+        background: #21262d;
+        color: #e6edf3;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #238636;
+        border-color: #2ea043;
+      }
+      button:hover {
+        filter: brightness(1.08);
+      }
+      #msg {
+        margin-top: 12px;
+        font-size: 12px;
+        min-height: 1.2em;
+      }
+      #msg.err {
+        color: #f85149;
+      }
+      #msg.ok {
+        color: #3fb950;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Main menu</h1>
+      <p class="sub">Audio routing for recording (WASAPI). Changes apply on the next recording.</p>
+
+      <label for="out">Primary output (desktop / game audio)</label>
+      <select id="out"></select>
+      <p class="hint">This is what gets captured as “what you hear” (loopback).</p>
+
+      <label for="in">Primary input (microphone)</label>
+      <select id="in"></select>
+
+      <div class="row">
+        <input type="checkbox" id="startup" />
+        <label for="startup" style="margin: 0; font-weight: 500">Start Bodycam Companion when Windows starts</label>
+      </div>
+
+      <div class="row">
+        <input type="checkbox" id="hidetray" />
+        <label for="hidetray" style="margin: 0; font-weight: 500">Hide icon from the notification area</label>
+      </div>
+      <p class="hint">
+        When hidden, the app keeps running (FiveM + localhost still work). Start Bodycam Companion again from the Start
+        menu to reopen this window and restore the tray icon.
+      </p>
+
+      <div class="actions">
+        <button type="button" class="primary" id="save">Save</button>
+        <button type="button" id="logs">Developer logs</button>
+        <button type="button" id="close">Close</button>
+      </div>
+      <p id="msg"></p>
+    </div>
+    <script>
+      const outSel = document.getElementById("out");
+      const inSel = document.getElementById("in");
+      const startup = document.getElementById("startup");
+      const hidetray = document.getElementById("hidetray");
+      const msg = document.getElementById("msg");
+
+      function fillSelect(sel, options, selectedId) {
+        sel.innerHTML = "";
+        for (const o of options) {
+          const opt = document.createElement("option");
+          opt.value = o.id;
+          opt.textContent = o.label;
+          if (o.id === selectedId) opt.selected = true;
+          sel.appendChild(opt);
+        }
+      }
+
+      async function init() {
+        try {
+          const data = await window.settingsApi.load();
+          fillSelect(outSel, data.outputs, data.wasapiOutputDevice);
+          fillSelect(inSel, data.inputs, data.wasapiInputDevice);
+          startup.checked = !!data.autoStartWithWindows;
+          hidetray.checked = !!data.hideTrayIcon;
+        } catch (e) {
+          msg.textContent = String(e);
+          msg.className = "err";
+        }
+      }
+
+      document.getElementById("save").addEventListener("click", async () => {
+        msg.textContent = "";
+        msg.className = "";
+        try {
+          const r = await window.settingsApi.save({
+            wasapiOutputDevice: outSel.value,
+            wasapiInputDevice: inSel.value,
+            autoStartWithWindows: startup.checked,
+            hideTrayIcon: hidetray.checked,
+          });
+          if (r.ok) {
+            msg.textContent = "Saved.";
+            msg.className = "ok";
+          } else {
+            msg.textContent = r.error || "Save failed";
+            msg.className = "err";
+          }
+        } catch (e) {
+          msg.textContent = String(e);
+          msg.className = "err";
+        }
+      });
+
+      document.getElementById("logs").addEventListener("click", () => {
+        void window.settingsApi.openLogs();
+      });
+
+      document.getElementById("close").addEventListener("click", () => window.close());
+
+      void init();
+    </script>
+  </body>
+</html>

@@ -14,6 +14,17 @@ export interface AppConfig {
   apiTokenProtected?: string;
   autoStartWithWindows: boolean;
   listenPort: number;
+  /** WASAPI loopback device name; empty = Windows default output. */
+  wasapiOutputDevice: string;
+  /** WASAPI capture (mic) device name; empty = Windows default input. */
+  wasapiInputDevice: string;
+  /** When true, no tray icon (HTTP + FiveM still work). Relaunch app to open Main menu again. */
+  hideTrayIcon: boolean;
+  /**
+   * After the first-run audio device wizard (or skip). Existing `config.json` files without this key
+   * are treated as already completed so upgrades are not interrupted.
+   */
+  audioSetupCompleted: boolean;
 }
 
 const defaults: AppConfig = {
@@ -24,6 +35,10 @@ const defaults: AppConfig = {
   apiToken: "",
   autoStartWithWindows: true,
   listenPort: 4555,
+  wasapiOutputDevice: "",
+  wasapiInputDevice: "",
+  hideTrayIcon: false,
+  audioSetupCompleted: false,
 };
 
 function readTokenFromEnv(): string {
@@ -50,16 +65,28 @@ export function loadConfig(safeStorage?: SafeStorage): AppConfig {
   ensureDirs();
   const path = configPath();
   let raw: Record<string, unknown> = {};
+  let configFileReadOk = false;
   try {
     if (fs.existsSync(path)) {
       raw = JSON.parse(fs.readFileSync(path, "utf8")) as Record<string, unknown>;
+      configFileReadOk = true;
     }
   } catch (e) {
     logLine("warn", "config.json parse failed, using defaults", { err: String(e) });
   }
+  const audioSetupCompleted = !configFileReadOk
+    ? false
+    : Object.prototype.hasOwnProperty.call(raw, "audioSetupCompleted")
+      ? !!raw.audioSetupCompleted
+      : true;
   const apiToken = decryptTokenIfNeeded(raw, safeStorage);
   const apiTokenProtected =
     typeof raw.apiTokenProtected === "string" ? raw.apiTokenProtected : undefined;
+  const wasOut =
+    typeof raw.wasapiOutputDevice === "string" ? raw.wasapiOutputDevice.trim() : "";
+  const wasIn =
+    typeof raw.wasapiInputDevice === "string" ? raw.wasapiInputDevice.trim() : "";
+
   return {
     consentAccepted: !!raw.consentAccepted,
     recordingOptOut: !!raw.recordingOptOut,
@@ -72,6 +99,10 @@ export function loadConfig(safeStorage?: SafeStorage): AppConfig {
       typeof raw.listenPort === "number" && raw.listenPort > 0 && raw.listenPort < 65536
         ? raw.listenPort
         : defaults.listenPort,
+    wasapiOutputDevice: wasOut,
+    wasapiInputDevice: wasIn,
+    hideTrayIcon: !!raw.hideTrayIcon,
+    audioSetupCompleted,
   };
 }
 
@@ -97,6 +128,10 @@ export function saveConfig(cfg: AppConfig, safeStorage?: SafeStorage): void {
     apiBase: cfg.apiBase,
     autoStartWithWindows: cfg.autoStartWithWindows,
     listenPort: cfg.listenPort,
+    wasapiOutputDevice: cfg.wasapiOutputDevice,
+    wasapiInputDevice: cfg.wasapiInputDevice,
+    hideTrayIcon: cfg.hideTrayIcon,
+    audioSetupCompleted: cfg.audioSetupCompleted,
   };
   if (tokenProtected) {
     disk.apiTokenProtected = tokenProtected;
