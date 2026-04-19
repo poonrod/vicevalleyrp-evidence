@@ -1,13 +1,37 @@
 Api = {}
 
+--- Prefer JSON `{ "error": "..." }` from the evidence API so clients see actionable text (e.g. max upload MB).
+local function formatApiHttpError(code, response)
+    local c = tonumber(code)
+    local r = type(response) == 'string' and response or ''
+    local okj, data = pcall(json.decode, r)
+    if okj and type(data) == 'table' then
+        if type(data.error) == 'string' and data.error ~= '' then
+            return data.error
+        end
+        if type(data.message) == 'string' and data.message ~= '' then
+            return data.message
+        end
+    end
+    local tail = r:gsub('%s+', ' '):gsub('^%s+', ''):sub(1, 220)
+    if tail ~= '' then
+        return ('HTTP %s — %s'):format(tostring(c or code), tail)
+    end
+    return ('HTTP %s'):format(tostring(c or code))
+end
+
 local function postOnce(path, body, cb)
     local url = Config.ApiBaseUrl:gsub('/$', '') .. path
     PerformHttpRequest(url, function(code, response)
         if code >= 200 and code < 300 then
             local ok, data = pcall(json.decode, response or '{}')
-            cb(ok and data or nil, nil)
+            if ok and type(data) == 'table' then
+                cb(data, nil)
+            else
+                cb(nil, 'Invalid JSON from API (upload-url/complete)')
+            end
         else
-            cb(nil, 'HTTP ' .. tostring(code) .. ' ' .. tostring(response))
+            cb(nil, formatApiHttpError(code, response))
         end
     end, 'POST', json.encode(body), {
         ['Content-Type'] = 'application/json',

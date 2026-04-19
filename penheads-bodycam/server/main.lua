@@ -16,6 +16,16 @@ local function newIncidentId()
     return ('BCAM-%s-%s'):format(os.date('!%Y%m%d'), tostring(math.random(1000, 9999)))
 end
 
+--- Strip GTA color markers / control chars; keep notifications short.
+local function sanitizeNotifyDetail(s, maxLen)
+    maxLen = maxLen or 105
+    s = tostring(s or ''):gsub('~', ''):gsub('[%c]', ' '):gsub('%s+', ' '):match('^%s*(.-)%s*$') or ''
+    if #s > maxLen then
+        return s:sub(1, maxLen - 3) .. '...'
+    end
+    return s
+end
+
 RegisterNetEvent('bodycam:server:requestUpload', function(meta)
     local src = source
     if not Permissions.IsLawEnforcement(src) then return end
@@ -51,7 +61,8 @@ RegisterNetEvent('bodycam:server:requestUpload', function(meta)
             if GetConvar('bodycam_debug', '0') == '1' then
                 print(('[bodycam] upload-url failed src=%s err=%s'):format(tostring(src), tostring(err)))
             end
-            TriggerClientEvent('bodycam:client:notify', src, '~r~Upload URL failed')
+            local detail = err and sanitizeNotifyDetail(err) or 'no response from API'
+            TriggerClientEvent('bodycam:client:notify', src, '~r~Upload URL failed~w~ ' .. detail)
             return
         end
         TriggerClientEvent('bodycam:client:presignedReady', src, {
@@ -89,7 +100,8 @@ RegisterNetEvent('bodycam:server:completeUpload', function(payload)
             if GetConvar('bodycam_debug', '0') == '1' then
                 print(('[bodycam] complete failed src=%s err=%s'):format(tostring(src), tostring(err)))
             end
-            TriggerClientEvent('bodycam:client:notify', src, '~r~Complete failed')
+            local detail = sanitizeNotifyDetail(err)
+            TriggerClientEvent('bodycam:client:notify', src, '~r~Complete failed~w~ ' .. detail)
             return
         end
         TriggerClientEvent('bodycam:client:notify', src, '~g~Evidence saved')

@@ -206,7 +206,9 @@ export async function issueUploadUrlForFivem(params: {
   assertAllowedMime(params.mimeType);
   const settings = await loadRetentionSettings();
   const maxBytes = settings.maxUploadSizeMB * 1024 * 1024;
-  if (params.fileSize > maxBytes) throw new Error("File too large");
+  if (params.fileSize > maxBytes) {
+    throw new Error(`File exceeds max upload size (${settings.maxUploadSizeMB} MB)`);
+  }
 
   if (params.videoTier === "long" && settings.enableLongVideoMode && settings.requireCaseNumberForLongVideos) {
     const hasCase = !!(params.caseNumber && params.caseNumber.trim());
